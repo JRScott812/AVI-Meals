@@ -1,0 +1,6 @@
+@AVI_Meals.Server_HostAddress = http://localhost:5076
+
+GET {{AVI_Meals.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="avi-meals.client/avi-meals.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="AVI-Meals.Server/AVI-Meals.Server.csproj" />
+</Solution>
