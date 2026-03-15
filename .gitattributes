@@ -1,7 +1,9 @@
 ###############################################################################
 # Set default behavior to automatically normalize line endings.
+#
+# This enforces CRLF checkout behavior for all text files.
 ###############################################################################
-* text=auto
+* text=auto eol=crlf
 
 ###############################################################################
 # Set default behavior for command prompt diff.

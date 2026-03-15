@@ -1,19 +1,23 @@
-
 namespace AVI_Meals.Server
 {
 	public class Program
 	{
 		public static void Main(string[] args)
 		{
-			var builder = WebApplication.CreateBuilder(args);
+			WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 			// Add services to the container.
-
+			builder.Services.AddMemoryCache();
+			builder.Services.AddHttpClient<Services.MealAnalyticsService>(client =>
+			{
+				client.Timeout = TimeSpan.FromSeconds(30);
+				client.DefaultRequestHeaders.UserAgent.ParseAdd("AVI-Meals/1.0");
+			});
 			builder.Services.AddControllers();
 			// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 			builder.Services.AddOpenApi();
 
-			var app = builder.Build();
+			WebApplication app = builder.Build();
 
 			app.UseDefaultFiles();
 			app.MapStaticAssets();

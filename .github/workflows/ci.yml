@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Restore server
+        run: dotnet restore AVI-Meals.Server/AVI-Meals.Server.csproj
+
+      - name: Install client dependencies
+        working-directory: avi-meals.client
+        run: npm ci
+
+      - name: Run dotnet format
+        run: dotnet format AVI-Meals.Server/AVI-Meals.Server.csproj --no-restore --verify-no-changes
+
+      - name: Run client format
+        working-directory: avi-meals.client
+        run: npm run format
+
+      - name: Ensure format produced no local changes
+        run: git diff --exit-code
+
+      - name: Run client lint
+        working-directory: avi-meals.client
+        run: npm run lint
+
+      - name: Build server
+        run: dotnet build AVI-Meals.Server/AVI-Meals.Server.csproj --configuration Release --no-restore
+
+      - name: Build client
+        working-directory: avi-meals.client
+        run: npm run build
