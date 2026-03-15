@@ -77,8 +77,8 @@ describe('App', () => {
 			expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
 		});
 
-		expect(screen.getByText(/Total meals:/)).toBeInTheDocument();
-		expect(screen.getByText(/Predicted unannounced meals/)).toBeInTheDocument();
+		expect(screen.getByText(/Total meals/i)).toBeInTheDocument();
+		expect(screen.getByText(/Predicted unannounced meals/i)).toBeInTheDocument();
 	});
 
 	it('switches to meals page when the Meals button is clicked', async () => {
@@ -93,7 +93,7 @@ describe('App', () => {
 			expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
 		});
 
-		const pagesNav = screen.getAllByText(/^Pages:$/)[0].closest('nav');
+		const pagesNav = screen.getAllByText(/^Pages$/)[0].closest('nav');
 		expect(pagesNav).not.toBeNull();
 
 		const mealsPageButton = within(pagesNav!).getByRole('button', { name: 'Meals' });

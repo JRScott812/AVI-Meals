@@ -100,6 +100,14 @@ function App() {
 	const [isLoading, setIsLoading] = useState(true);
 	const [page, setPage] = useState<DashboardPage>('all');
 
+	const renderChipSeries = (items: string[]) => (
+		<span className="chip-series">
+			{items.map((item, index) => (
+				<span key={`${item}-${index}`} className="chip">{item}</span>
+			))}
+		</span>
+	);
+
 	const loadAnalytics = useCallback(async (signal?: AbortSignal) => {
 		setIsLoading(true);
 		setError(null);
@@ -145,160 +153,170 @@ function App() {
 	const showPage = (target: DashboardPage): boolean => page === 'all' || page === target;
 
 	return (
-		<main>
-			<h1>AVI Meals</h1>
-			<p>Reads the Taylor dining portal, follows its public menu links, and builds meal heatmaps and predictions.</p>
-			<p>
-				<button type="button" onClick={() => void loadAnalytics()} disabled={isLoading}>
-					{isLoading ? 'Loading...' : 'Refresh meals'}
-				</button>
-			</p>
+		<main className="app-shell">
+			<header className="hero">
+				<div className="brand-lockup">
+					<img src="/avi-taylor-mark.svg" alt="Taylor AVI mark" className="brand-mark" />
+					<div>
+						<p className="brand-kicker">Taylor Dining by AVI Fresh</p>
+						<h1>AVI Meals</h1>
+					</div>
+				</div>
+				<p>Reads the Taylor dining portal, follows its public menu links, and builds meal heatmaps and predictions.</p>
+				<div className="toolbar">
+					<button type="button" onClick={() => void loadAnalytics()} disabled={isLoading} className="button button-primary">
+						{isLoading ? 'Loading...' : 'Refresh meals'}
+					</button>
+				</div>
+			</header>
 
-			<nav>
-				<p>Pages:</p>
-				<p>
-					<button type="button" onClick={() => setPage('all')} disabled={page === 'all'}>All</button>{' '}
-					<button type="button" onClick={() => setPage('summary')} disabled={page === 'summary'}>Summary</button>{' '}
-					<button type="button" onClick={() => setPage('predictions')} disabled={page === 'predictions'}>Predictions</button>{' '}
-					<button type="button" onClick={() => setPage('heatmaps')} disabled={page === 'heatmaps'}>Heatmaps</button>{' '}
-					<button type="button" onClick={() => setPage('meals')} disabled={page === 'meals'}>Meals</button>
-				</p>
+			<nav className="page-nav">
+				<p className="page-nav-label">Pages</p>
+				<div className="page-nav-buttons">
+					<button type="button" onClick={() => setPage('all')} disabled={page === 'all'} className="button">All</button>
+					<button type="button" onClick={() => setPage('summary')} disabled={page === 'summary'} className="button">Summary</button>
+					<button type="button" onClick={() => setPage('predictions')} disabled={page === 'predictions'} className="button">Predictions</button>
+					<button type="button" onClick={() => setPage('heatmaps')} disabled={page === 'heatmaps'} className="button">Heatmaps</button>
+					<button type="button" onClick={() => setPage('meals')} disabled={page === 'meals'} className="button">Meals</button>
+				</div>
 			</nav>
 
-			{error !== null && <p>Unable to load meals: {error}</p>}
+			{error !== null && <p className="status-error">Unable to load meals: {error}</p>}
 
 			{analytics !== null && (
-				<>
+				<div className="content-stack">
 					{showPage('summary') && (
-						<section>
+						<section className="panel">
 							<h2>Summary</h2>
-							<ul>
-								<li>Total meals: {analytics.summary.mealCount}</li>
-								<li>Total categories: {analytics.summary.categoryCount}</li>
-								<li>Lowest price: {currency.format(analytics.summary.lowestPrice)}</li>
-								<li>Highest price: {currency.format(analytics.summary.highestPrice)}</li>
-								<li>Average price: {currency.format(analytics.summary.averagePrice)}</li>
-								<li>Categories: {analytics.summary.categoryNames.join(', ')}</li>
-								<li>Portal source: <a href={analytics.portalUrl} target="_blank" rel="noreferrer">Taylor dining portal</a></li>
-								<li>Dining page: <a href={analytics.diningUrl} target="_blank" rel="noreferrer">AVI dining page</a></li>
-								<li>Menu page: <a href={analytics.menuUrl} target="_blank" rel="noreferrer">CaterTrax menu</a></li>
-								<li>Snapshot time: {new Date(analytics.retrievedAtUtc).toLocaleString()}</li>
+							<ul className="summary-list">
+								<li><span>Total meals</span><strong>{analytics.summary.mealCount}</strong></li>
+								<li><span>Total categories</span><strong>{analytics.summary.categoryCount}</strong></li>
+								<li><span>Lowest price</span><strong>{currency.format(analytics.summary.lowestPrice)}</strong></li>
+								<li><span>Highest price</span><strong>{currency.format(analytics.summary.highestPrice)}</strong></li>
+								<li><span>Average price</span><strong>{currency.format(analytics.summary.averagePrice)}</strong></li>
+								<li><span>Categories</span>{renderChipSeries(analytics.summary.categoryNames)}</li>
+								<li><span>Portal source</span><a href={analytics.portalUrl} target="_blank" rel="noreferrer">Taylor dining portal</a></li>
+								<li><span>Dining page</span><a href={analytics.diningUrl} target="_blank" rel="noreferrer">AVI dining page</a></li>
+								<li><span>Menu page</span><a href={analytics.menuUrl} target="_blank" rel="noreferrer">CaterTrax menu</a></li>
+								<li><span>Snapshot time</span><strong>{new Date(analytics.retrievedAtUtc).toLocaleString()}</strong></li>
 							</ul>
 						</section>
 					)}
 
 					{showPage('predictions') && (
 						<>
-							<section>
+							<section className="panel">
 								<h2>Predictions</h2>
-								<ol>
+								<ol className="prediction-list">
 									{analytics.predictions.map(prediction => (
 										<li key={prediction.title}>
 											<strong>{prediction.title}</strong>
-											<div>{prediction.detail}</div>
-											<div>Confidence: {(prediction.confidence * 100).toFixed(0)}%</div>
+											<p>{prediction.detail}</p>
+											<span className="pill">Confidence: {(prediction.confidence * 100).toFixed(0)}%</span>
 										</li>
 									))}
 								</ol>
 							</section>
 
-							<section>
+							<section className="panel">
 								<h2>Predicted unannounced meals</h2>
-								<table border={1} cellPadding={6}>
-									<thead>
-										<tr>
-											<th>Name</th>
-											<th>Category</th>
-											<th>Predicted price</th>
-											<th>Confidence</th>
-											<th>Keywords</th>
-											<th>Rationale</th>
-										</tr>
-									</thead>
-									<tbody>
-										{analytics.unannouncedMealPredictions.map(prediction => (
-											<tr key={prediction.name}>
-												<td>{prediction.name}</td>
-												<td>{prediction.category}</td>
-												<td>{currency.format(prediction.predictedPrice)}</td>
-												<td>{(prediction.confidence * 100).toFixed(0)}%</td>
-												<td>{prediction.keywords.join(', ')}</td>
-												<td>{prediction.rationale}</td>
+								<div className="table-wrap">
+									<table className="data-table">
+										<thead>
+											<tr>
+												<th>Name</th>
+												<th>Category</th>
+												<th>Predicted price</th>
+												<th>Confidence</th>
+												<th>Keywords</th>
+												<th>Rationale</th>
 											</tr>
-										))}
-									</tbody>
-								</table>
+										</thead>
+										<tbody>
+											{analytics.unannouncedMealPredictions.map(prediction => (
+												<tr key={prediction.name}>
+													<td>{prediction.name}</td>
+													<td>{prediction.category}</td>
+													<td>{currency.format(prediction.predictedPrice)}</td>
+													<td>{(prediction.confidence * 100).toFixed(0)}%</td>
+													<td>{renderChipSeries(prediction.keywords)}</td>
+													<td>{prediction.rationale}</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</div>
 							</section>
 						</>
 					)}
 
 					{showPage('heatmaps') && (
-						<section>
+						<section className="panel">
 							<h2>Heatmaps</h2>
-							{analytics.heatmaps.map(heatmap => (
-								<article key={heatmap.title}>
-									<h3>{heatmap.title}</h3>
-									<table border={1} cellPadding={6}>
-										<thead>
-											<tr>
-												<th>Category</th>
-												{heatmap.columns.map(column => (
-													<th key={column}>{column}</th>
-												))}
-											</tr>
-										</thead>
-										<tbody>
-											{heatmap.rows.map(row => (
-												<tr key={row.label}>
-													<th>{row.label}</th>
-													{row.cells.map(cell => (
-														<td key={`${row.label}-${cell.label}`}>
-															{cell.shade} {cell.value}
-														</td>
+							<div className="content-stack">
+								{analytics.heatmaps.map(heatmap => (
+									<article key={heatmap.title} className="sub-panel">
+										<h3>{heatmap.title}</h3>
+										<div className="table-wrap">
+											<table className="data-table">
+												<thead>
+													<tr>
+														<th>Category</th>
+														{heatmap.columns.map(column => (
+															<th key={column}>{column}</th>
+														))}
+													</tr>
+												</thead>
+												<tbody>
+													{heatmap.rows.map(row => (
+														<tr key={row.label}>
+															<th>{row.label}</th>
+															{row.cells.map(cell => (
+																<td key={`${row.label}-${cell.label}`}>{cell.shade} {cell.value}</td>
+															))}
+														</tr>
 													))}
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</article>
-							))}
+												</tbody>
+											</table>
+										</div>
+									</article>
+								))}
+							</div>
 						</section>
 					)}
 
 					{showPage('meals') && (
-						<section>
+						<section className="panel">
 							<h2>Meals</h2>
-							<table border={1} cellPadding={6}>
-								<thead>
-									<tr>
-										<th>Category</th>
-										<th>Meal</th>
-										<th>Price</th>
-										<th>Description</th>
-										<th>Keywords</th>
-										<th>Link</th>
-									</tr>
-								</thead>
-								<tbody>
-									{analytics.meals.map(meal => (
-										<tr key={`${meal.category}-${meal.name}`}>
-											<td>{meal.category}</td>
-											<td>{meal.name}</td>
-											<td>{meal.priceLabel || currency.format(meal.price)}</td>
-											<td>{meal.description}</td>
-											<td>{meal.keywords.join(', ')}</td>
-											<td>
-												<a href={meal.productUrl} target="_blank" rel="noreferrer">
-													Open
-												</a>
-											</td>
+							<div className="table-wrap">
+								<table className="data-table">
+									<thead>
+										<tr>
+											<th>Category</th>
+											<th>Meal</th>
+											<th>Price</th>
+											<th>Description</th>
+											<th>Keywords</th>
+											<th>Link</th>
 										</tr>
-									))}
-								</tbody>
-							</table>
+									</thead>
+									<tbody>
+										{analytics.meals.map(meal => (
+											<tr key={`${meal.category}-${meal.name}`}>
+												<td>{meal.category}</td>
+												<td>{meal.name}</td>
+												<td>{meal.priceLabel || currency.format(meal.price)}</td>
+												<td>{meal.description}</td>
+												<td>{renderChipSeries(meal.keywords)}</td>
+												<td><a href={meal.productUrl} target="_blank" rel="noreferrer">Open</a></td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
 						</section>
 					)}
-				</>
+				</div>
 			)}
 		</main>
 	);

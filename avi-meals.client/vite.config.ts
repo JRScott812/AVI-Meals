@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { fileURLToPath, URL } from 'node:url';
 
 import { defineConfig } from 'vite';
@@ -8,9 +9,9 @@ import child_process from 'child_process';
 import { env } from 'process';
 
 const baseFolder =
-    env.APPDATA !== undefined && env.APPDATA !== ''
-    	? `${env.APPDATA}/ASP.NET/https`
-    	: `${env.HOME}/.aspnet/https`;
+	env.APPDATA !== undefined && env.APPDATA !== ''
+		? `${env.APPDATA}/ASP.NET/https`
+		: `${env.HOME}/.aspnet/https`;
 
 const certificateName = "avi-meals.client";
 const certFilePath = path.join(baseFolder, `${certificateName}.pem`);
@@ -61,10 +62,5 @@ export default defineConfig({
 			key: fs.readFileSync(keyFilePath),
 			cert: fs.readFileSync(certFilePath),
 		}
-	},
-	test: {
-		environment: 'jsdom',
-		setupFiles: './src/test/setup.ts',
-		css: true
 	}
 })
