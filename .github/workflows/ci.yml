@@ -32,18 +32,14 @@ jobs:
         working-directory: avi-meals.client
         run: npm ci
 
-      - name: Run dotnet format
-        shell: bash
-        run: |
-          set -o pipefail
-          dotnet format AVI-Meals.Server/AVI-Meals.Server.csproj --no-restore --verify-no-changes --verbosity minimal 2>&1 \
-            | grep -v "Warnings were encountered while loading the workspace. Set the verbosity option to the 'diagnostic' level to log warnings."
+      - name: Verify server formatting
+        run: dotnet format AVI-Meals.Server/AVI-Meals.Server.csproj --no-restore --verify-no-changes --verbosity diagnostic
 
-      - name: Run client format
+      - name: Verify client formatting
         working-directory: avi-meals.client
         run: npm run format
 
-      - name: Ensure format produced no local changes
+      - name: Ensure formatting produced no local changes
         run: git diff --exit-code
 
       - name: Run client lint

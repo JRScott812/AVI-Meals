@@ -1,27 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>AVI_Meals.Server</RootNamespace>
-    <UseAppHost>false</UseAppHost>
-    <SpaRoot>..\avi-meals.client</SpaRoot>
-    <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
-    <SpaProxyServerUrl>https://localhost:61774</SpaProxyServerUrl>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<RootNamespace>AVI_Meals.Server</RootNamespace>
+		<UseAppHost>false</UseAppHost>
+		<SpaRoot>..\avi-meals.client</SpaRoot>
+		<SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
+		<SpaProxyServerUrl>https://localhost:61774</SpaProxyServerUrl>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.4" />
-    <PackageReference Include="Microsoft.AspNetCore.SpaProxy">
-      <Version>10.*-*</Version>
-    </PackageReference>
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.4" />
+		<PackageReference Include="Microsoft.AspNetCore.SpaProxy">
+			<Version>10.*-*</Version>
+		</PackageReference>
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\avi-meals.client\avi-meals.client.esproj">
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\avi-meals.client\avi-meals.client.esproj">
+		  <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+		</ProjectReference>
+	</ItemGroup>
+
+	<!--
+		Keep local builds consistently formatted by auto-running formatters.
+		CI intentionally skips this target and only verifies formatting.
+	-->
+	<Target
+		Name="FormatCodeBeforeLocalBuild"
+		BeforeTargets="Build"
+		Condition="'$(CI)' != 'true' and '$(TF_BUILD)' != 'True' and '$(DesignTimeBuild)' != 'true'">
+		<Exec Command="dotnet format $(MSBuildProjectFullPath) --no-restore --verbosity minimal" />
+		<Exec Command="npm run format" WorkingDirectory="$(SpaRoot)" />
+	</Target>
 
 </Project>
