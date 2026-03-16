@@ -198,7 +198,7 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 
 		return new DishRouteContext(locationId, mealId, date);
 	}
-	
+
 	private async Task<int?> ResolveDishLocationIdAsync(CancellationToken cancellationToken)
 	{
 		string? payload = await TryGetJsonAsync(DishLocationsUrl, cancellationToken).ConfigureAwait(false);
