@@ -13,54 +13,83 @@ const baseFolder =
 		? `${env.APPDATA}/ASP.NET/https`
 		: `${env.HOME}/.aspnet/https`;
 
-const certificateName = "avi-meals.client";
+const certificateName = 'avi-meals.client';
 const certFilePath = path.join(baseFolder, `${certificateName}.pem`);
 const keyFilePath = path.join(baseFolder, `${certificateName}.key`);
 
-if (!fs.existsSync(baseFolder)) {
-	fs.mkdirSync(baseFolder, { recursive: true });
-}
+/**
+ * Ensures local development certificates exist for HTTPS proxy mode.
+ */
+function ensureDevCertificateFiles(): void {
+	if (!fs.existsSync(baseFolder)) {
+		fs.mkdirSync(baseFolder, { recursive: true });
+	}
 
-if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
-	if (0 !== child_process.spawnSync('dotnet', [
-		'dev-certs',
-		'https',
-		'--export-path',
-		certFilePath,
-		'--format',
-		'Pem',
-		'--no-password',
-	], { stdio: 'inherit', }).status) {
-		throw new Error("Could not create certificate.");
+	if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
+		if (0 !== child_process.spawnSync('dotnet', [
+			'dev-certs',
+			'https',
+			'--export-path',
+			certFilePath,
+			'--format',
+			'Pem',
+			'--no-password'
+		], { stdio: 'inherit' }).status) {
+			throw new Error('Could not create certificate.');
+		}
 	}
 }
 
 const target = env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}` :
 	env.ASPNETCORE_URLS ? env.ASPNETCORE_URLS.split(';')[0] : 'https://localhost:7158';
 
+/**
+ * Resolves the hosted base path used by static builds (e.g., GitHub Pages).
+ */
+function getConfiguredBasePath(): string {
+	const configuredBasePath = env.VITE_BASE_PATH?.trim();
+	if (configuredBasePath === undefined || configuredBasePath === '') {
+		return '/';
+	}
+
+	if (configuredBasePath.startsWith('/')) {
+		return configuredBasePath.endsWith('/') ? configuredBasePath : `${configuredBasePath}/`;
+	}
+
+	return `/${configuredBasePath.endsWith('/') ? configuredBasePath : `${configuredBasePath}/`}`;
+}
+
 // https://vitejs.dev/config/
-export default defineConfig({
-	plugins: [plugin()],
-	resolve: {
-		alias: {
-			'@': fileURLToPath(new URL('./src', import.meta.url))
-		}
-	},
-	server: {
-		proxy: {
-			'^/weatherforecast': {
-				target,
-				secure: false
-			},
-			'^/api': {
-				target,
-				secure: false
+export default defineConfig(({ command }) => {
+	const isServeCommand = command === 'serve';
+	if (isServeCommand) {
+		ensureDevCertificateFiles();
+	}
+
+	return {
+		base: getConfiguredBasePath(),
+		plugins: [plugin()],
+		resolve: {
+			alias: {
+				'@': fileURLToPath(new URL('./src', import.meta.url))
 			}
 		},
-		port: parseInt(env.DEV_SERVER_PORT || '61774'),
-		https: {
-			key: fs.readFileSync(keyFilePath),
-			cert: fs.readFileSync(certFilePath),
+		server: !isServeCommand ? undefined : {
+			proxy: {
+				'^/weatherforecast': {
+					target,
+					secure: false
+				},
+				'^/api': {
+					target,
+					secure: false
+				}
+			},
+			port: parseInt(env.DEV_SERVER_PORT || '61774'),
+			https: {
+				key: fs.readFileSync(keyFilePath),
+				cert: fs.readFileSync(certFilePath)
+			}
 		}
-	}
-})
+	};
+});

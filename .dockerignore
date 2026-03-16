@@ -1,0 +1,14 @@
+**/.git
+**/.vs
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/coverage
+**/.idea
+**/.vscode
+**/*.user
+**/*.suo
+**/*.swp
+**/*.tmp
+README.md
