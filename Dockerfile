@@ -9,9 +9,10 @@ RUN npm run build
 # Publish the .NET server with the prebuilt client dist output.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS server-build
 WORKDIR /src
+ENV BuildingInsideDocker=true
 COPY . .
 COPY --from=client-build /src/avi-meals.client/dist ./avi-meals.client/dist
-RUN dotnet publish AVI-Meals.Server/AVI-Meals.Server.csproj -c Release -o /app/publish
+RUN CI=true dotnet publish AVI-Meals.Server/AVI-Meals.Server.csproj -c Release -o /app/publish
 
 # Final runtime image used by Heroku container stack.
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
