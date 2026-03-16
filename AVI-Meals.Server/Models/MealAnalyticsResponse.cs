@@ -11,7 +11,9 @@ public sealed record MealAnalyticsResponse(
 	IReadOnlyList<MealItem> Meals,
 	IReadOnlyList<Heatmap> Heatmaps,
 	IReadOnlyList<Prediction> Predictions,
-	IReadOnlyList<UnannouncedMealPrediction> UnannouncedMealPredictions);
+	IReadOnlyList<UnannouncedMealPrediction> UnannouncedMealPredictions,
+	IReadOnlyList<DailyMenu> DailyMenus,
+	IReadOnlyList<MealOccurrence> MealOccurrences);
 
 public sealed record MealSummary(
 	int MealCount,
@@ -48,12 +50,30 @@ public sealed record HeatmapCell(
 public sealed record Prediction(
 	string Title,
 	string Detail,
-	float Confidence);
+	decimal Confidence);
 
 public sealed record UnannouncedMealPrediction(
 	string Name,
 	string Category,
 	string Rationale,
-	float PredictedPrice,
-	float Confidence,
+	decimal PredictedPrice,
+	decimal Confidence,
 	IReadOnlyList<string> Keywords);
+
+public sealed record DailyMenu(
+	DateOnly Date,
+	IReadOnlyList<DailyMenuItem> Items);
+
+public sealed record DailyMenuItem(
+	string MealName,
+	string Station,
+	string Category,
+	decimal? Price,
+	IReadOnlyList<string> Tags);
+
+/// <summary>
+/// Aggregated meal occurrence count used to identify duplicates.
+/// </summary>
+public sealed record MealOccurrence(
+	string MealName,
+	int OccurrenceCount);

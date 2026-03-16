@@ -13,8 +13,5 @@ public sealed class MealsController(MealAnalyticsService mealAnalyticsService) :
 	/// </summary>
 	[HttpGet]
 	[ProducesResponseType<MealAnalyticsResponse>(StatusCodes.Status200OK)]
-	public Task<MealAnalyticsResponse> GetAsync(CancellationToken cancellationToken)
-	{
-		return mealAnalyticsService.GetAnalyticsAsync(cancellationToken);
-	}
+	public Task<MealAnalyticsResponse> GetAsync(CancellationToken cancellationToken) => mealAnalyticsService.GetAnalyticsAsync(cancellationToken);
 }

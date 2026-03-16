@@ -2,6 +2,7 @@ using AVI_Meals.Server.Models;
 using Microsoft.Extensions.Caching.Memory;
 using System.Globalization;
 using System.Net;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace AVI_Meals.Server.Services;
@@ -11,6 +12,10 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 	private const string CacheKey = "meal-analytics";
 	private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(30);
 	private const string PortalUrl = "https://connecttaylor.atriumcampus.com/index.php";
+	private const string DishSiteUrl = "https://dish.avifoodsystems.com/taylor";
+	private const string DishLocationsUrl = "https://dish.avifoodsystems.com/api/locations?client=taylor";
+	private const string DishMenuWeekUrlFormat = "https://dish.avifoodsystems.com/api/menu-items/week?date={0}&locationId={1}&mealId={2}";
+	private static readonly int[] DishMealIds = [1, 2, 3, 4, 5, 6];
 
 	private static readonly string[] ProteinTerms = ["Chicken", "Turkey", "Pork", "Beef", "Tofu", "Veggie", "Falafel", "Egg"];
 	private static readonly string[] StyleTerms = ["Bowl", "Wrap", "Skillet", "Pasta", "Salad", "Flatbread", "Tacos", "Sandwich"];
@@ -21,7 +26,7 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 	/// </summary>
 	public async Task<MealAnalyticsResponse> GetAnalyticsAsync(CancellationToken cancellationToken)
 	{
-		var result = await cache.GetOrCreateAsync(CacheKey, async entry =>
+		MealAnalyticsResponse? result = await cache.GetOrCreateAsync(CacheKey, async entry =>
 		{
 			entry.AbsoluteExpirationRelativeToNow = CacheDuration;
 			return await BuildAnalyticsAsync(cancellationToken).ConfigureAwait(false);
@@ -39,6 +44,7 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 		string diningHtml = await GetHtmlAsync(diningUrl, cancellationToken).ConfigureAwait(false);
 		string caterTraxBaseUrl = ExtractFirstAbsoluteUrl(diningHtml, "catertrax.com")
 			?? throw new InvalidOperationException("The catering menu link could not be found.");
+		string dishUrl = ExtractFirstAbsoluteUrl(diningHtml, "dish.avifoodsystems.com") ?? DishSiteUrl;
 
 		string menuUrl = new Uri(new Uri(caterTraxBaseUrl), "menugrid.asp?mode=aff").ToString();
 		string menuHtml = await GetHtmlAsync(menuUrl, cancellationToken).ConfigureAwait(false);
@@ -63,9 +69,12 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 			throw new InvalidOperationException("No meals were found in the public menu.");
 		}
 
+		IReadOnlyList<DailyMenu> dailyMenus = await BuildDishDailyMenusAsync(dishUrl, cancellationToken).ConfigureAwait(false);
+
 		MealItem[] orderedMeals = [.. meals
 			.OrderBy(meal => meal.Category, StringComparer.OrdinalIgnoreCase)
 			.ThenBy(meal => meal.Name, StringComparer.OrdinalIgnoreCase)];
+		IReadOnlyList<MealOccurrence> mealOccurrences = BuildMealOccurrences(orderedMeals, dailyMenus);
 
 		return new MealAnalyticsResponse(
 			PortalUrl,
@@ -76,7 +85,301 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 			orderedMeals,
 			BuildHeatmaps(orderedMeals),
 			BuildPredictions(orderedMeals),
-			BuildUnannouncedMealPredictions(orderedMeals));
+			BuildUnannouncedMealPredictions(orderedMeals),
+			dailyMenus,
+			mealOccurrences);
+	}
+
+	/// <summary>
+	/// Builds a distinct meal-name collection with occurrence counts across menu sources.
+	/// </summary>
+	private static IReadOnlyList<MealOccurrence> BuildMealOccurrences(
+		IReadOnlyList<MealItem> meals,
+		IReadOnlyList<DailyMenu> dailyMenus)
+	{
+		IEnumerable<string> primaryNames = meals
+			.Select(meal => meal.Name)
+			.Where(name => !string.IsNullOrWhiteSpace(name));
+		IEnumerable<string> dailyNames = dailyMenus
+			.SelectMany(day => day.Items)
+			.Select(item => item.MealName)
+			.Where(name => !string.IsNullOrWhiteSpace(name));
+
+		MealOccurrence[] occurrences = [.. primaryNames
+			.Concat(dailyNames)
+			.GroupBy(name => name.Trim(), StringComparer.OrdinalIgnoreCase)
+			.Select(group => new MealOccurrence(group.First(), group.Count()))
+			.OrderByDescending(item => item.OccurrenceCount)
+			.ThenBy(item => item.MealName, StringComparer.OrdinalIgnoreCase)];
+
+		return occurrences;
+	}
+
+	/// <summary>
+	/// Builds daily menus from AVI Dish, honoring location/meal/date route segments when present.
+	/// </summary>
+	private async Task<IReadOnlyList<DailyMenu>> BuildDishDailyMenusAsync(string dishUrl, CancellationToken cancellationToken)
+	{
+		DishRouteContext routeContext = ParseDishRouteContext(dishUrl);
+		int? locationId = routeContext.LocationId ?? await ResolveDishLocationIdAsync(cancellationToken).ConfigureAwait(false);
+		if (!locationId.HasValue)
+		{
+			return [];
+		}
+
+		DateOnly anchorDate = routeContext.Date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+		string dateParameter = anchorDate.ToString("M/d/yyyy", CultureInfo.InvariantCulture);
+		IReadOnlyList<int> mealIds = routeContext.MealId.HasValue ? [routeContext.MealId.Value] : DishMealIds;
+
+		List<DishMenuItemRaw> weeklyItems = [];
+		foreach (int mealId in mealIds)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			string endpoint = string.Format(CultureInfo.InvariantCulture, DishMenuWeekUrlFormat, dateParameter, locationId.Value, mealId);
+			string? payload = await TryGetJsonAsync(endpoint, cancellationToken).ConfigureAwait(false);
+			if (string.IsNullOrWhiteSpace(payload))
+			{
+				continue;
+			}
+
+			weeklyItems.AddRange(ParseDishMenuItems(payload));
+		}
+
+		if (weeklyItems.Count == 0)
+		{
+			return [];
+		}
+
+		DailyMenu[] dailyMenus = [.. weeklyItems
+			.GroupBy(item => item.Date)
+			.OrderBy(group => group.Key)
+			.Select(group => new DailyMenu(
+				group.Key,
+				[.. group
+					.OrderBy(item => item.Station, StringComparer.OrdinalIgnoreCase)
+					.ThenBy(item => item.MealName, StringComparer.OrdinalIgnoreCase)
+					.Select(item => new DailyMenuItem(item.MealName, item.Station, item.Category, item.Price, item.Tags))
+				]))];
+
+		return dailyMenus;
+	}
+
+	private static DishRouteContext ParseDishRouteContext(string dishUrl)
+	{
+		if (!Uri.TryCreate(dishUrl, UriKind.Absolute, out Uri? uri))
+		{
+			return DishRouteContext.Empty;
+		}
+
+		string[] segments = uri.AbsolutePath
+			.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+		if (segments.Length < 2)
+		{
+			return DishRouteContext.Empty;
+		}
+
+		int? locationId = int.TryParse(segments[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedLocationId)
+			? parsedLocationId
+			: null;
+		int? mealId = segments.Length > 2 && int.TryParse(segments[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedMealId)
+			? parsedMealId
+			: null;
+		DateOnly? date = null;
+		if (segments.Length > 3)
+		{
+			string rawDate = segments[3];
+			string[] acceptedFormats = ["M/d/yyyy", "M-d-yyyy", "yyyy-MM-dd", "MM-dd-yyyy"];
+			if (DateOnly.TryParseExact(rawDate, acceptedFormats, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out DateOnly parsedDate)
+				|| DateOnly.TryParse(rawDate, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out parsedDate))
+			{
+				date = parsedDate;
+			}
+		}
+
+		return new DishRouteContext(locationId, mealId, date);
+	}
+	
+	private async Task<int?> ResolveDishLocationIdAsync(CancellationToken cancellationToken)
+	{
+		string? payload = await TryGetJsonAsync(DishLocationsUrl, cancellationToken).ConfigureAwait(false);
+		if (string.IsNullOrWhiteSpace(payload))
+		{
+			return null;
+		}
+
+		using JsonDocument document = JsonDocument.Parse(payload);
+		if (document.RootElement.ValueKind != JsonValueKind.Array)
+		{
+			return null;
+		}
+
+		foreach (JsonElement location in document.RootElement.EnumerateArray())
+		{
+			if (!location.TryGetProperty("name", out JsonElement nameElement)
+				|| nameElement.ValueKind != JsonValueKind.String)
+			{
+				continue;
+			}
+
+			string? name = nameElement.GetString();
+			if (string.IsNullOrWhiteSpace(name)
+				|| !name.Contains("Taylor", StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+
+			if (!location.TryGetProperty("id", out JsonElement idElement)
+				|| idElement.ValueKind != JsonValueKind.Number)
+			{
+				continue;
+			}
+
+			if (idElement.TryGetInt32(out int locationId))
+			{
+				return locationId;
+			}
+		}
+
+		return null;
+	}
+
+	private static IReadOnlyList<DishMenuItemRaw> ParseDishMenuItems(string payload)
+	{
+		using JsonDocument document = JsonDocument.Parse(payload);
+		if (document.RootElement.ValueKind != JsonValueKind.Array)
+		{
+			return [];
+		}
+
+		List<DishMenuItemRaw> items = [];
+		foreach (JsonElement element in document.RootElement.EnumerateArray())
+		{
+			if (!TryParseDishMenuItem(element, out DishMenuItemRaw? item) || item is null)
+			{
+				continue;
+			}
+
+			items.Add(item);
+		}
+
+		return items;
+	}
+
+	private static bool TryParseDishMenuItem(JsonElement element, out DishMenuItemRaw? item)
+	{
+		item = null;
+
+		if (!TryGetPropertyString(element, "name", out string mealName)
+			|| !TryGetPropertyString(element, "date", out string dateText)
+			|| !DateOnly.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out DateOnly date))
+		{
+			return false;
+		}
+
+		string station = TryGetPropertyString(element, "stationName", out string stationName)
+			? stationName
+			: "General";
+		string category = TryGetPropertyString(element, "categoryName", out string categoryName)
+			? categoryName
+			: "Uncategorized";
+		decimal? price = TryGetPropertyDecimal(element, "price", out decimal parsedPrice)
+			? parsedPrice
+			: null;
+
+		List<string> tags = [];
+		if (element.TryGetProperty("preferences", out JsonElement preferencesElement)
+			&& preferencesElement.ValueKind == JsonValueKind.Array)
+		{
+			foreach (JsonElement preference in preferencesElement.EnumerateArray())
+			{
+				if (TryGetPropertyString(preference, "name", out string preferenceName))
+				{
+					tags.Add(preferenceName);
+				}
+			}
+		}
+
+		if (element.TryGetProperty("allergens", out JsonElement allergensElement)
+			&& allergensElement.ValueKind == JsonValueKind.Array)
+		{
+			foreach (JsonElement allergen in allergensElement.EnumerateArray())
+			{
+				if (TryGetPropertyString(allergen, "name", out string allergenName))
+				{
+					tags.Add($"Contains {allergenName}");
+				}
+			}
+		}
+
+		item = new DishMenuItemRaw(
+			date,
+			mealName,
+			station,
+			category,
+			price,
+			[.. tags.Distinct(StringComparer.OrdinalIgnoreCase)]);
+		return true;
+	}
+
+	private static bool TryGetPropertyString(JsonElement element, string propertyName, out string value)
+	{
+		value = string.Empty;
+		if (!element.TryGetProperty(propertyName, out JsonElement property)
+			|| property.ValueKind != JsonValueKind.String)
+		{
+			return false;
+		}
+
+		string? parsed = property.GetString();
+		if (string.IsNullOrWhiteSpace(parsed))
+		{
+			return false;
+		}
+
+		value = parsed;
+		return true;
+	}
+
+	private static bool TryGetPropertyDecimal(JsonElement element, string propertyName, out decimal value)
+	{
+		value = 0m;
+		if (!element.TryGetProperty(propertyName, out JsonElement property))
+		{
+			return false;
+		}
+
+		if (property.ValueKind == JsonValueKind.Number && property.TryGetDecimal(out decimal directValue))
+		{
+			value = directValue;
+			return true;
+		}
+
+		if (property.ValueKind == JsonValueKind.String
+			&& decimal.TryParse(property.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out decimal textValue))
+		{
+			value = textValue;
+			return true;
+		}
+
+		return false;
+	}
+
+	private async Task<string?> TryGetJsonAsync(string url, CancellationToken cancellationToken)
+	{
+		using HttpResponseMessage response = await httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+		if (!response.IsSuccessStatusCode)
+		{
+			return null;
+		}
+
+		string payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+		if (payload.StartsWith("<!DOCTYPE html", StringComparison.OrdinalIgnoreCase)
+			|| payload.StartsWith("<html", StringComparison.OrdinalIgnoreCase))
+		{
+			return null;
+		}
+
+		return payload;
 	}
 
 	private async Task<string> GetHtmlAsync(string url, CancellationToken cancellationToken)
@@ -94,7 +397,7 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 		foreach (Match match in matches)
 		{
 			string href = match.Groups["href"].Value;
-			string name = NormalizeText(match.Groups["name"].Value);
+			string name = NormalizeTextValue(match.Groups["name"].Value);
 			if (string.IsNullOrWhiteSpace(href) || string.IsNullOrWhiteSpace(name))
 			{
 				continue;
@@ -110,9 +413,9 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 	{
 		foreach (Match match in ProductRegex().Matches(html))
 		{
-			string name = NormalizeText(match.Groups["name"].Value);
-			string description = NormalizeText(StripHtml(match.Groups["description"].Value));
-			string priceText = NormalizeText(match.Groups["price"].Value);
+			string name = NormalizeTextValue(match.Groups["name"].Value);
+			string description = NormalizeTextValue(StripHtml(match.Groups["description"].Value));
+			string priceText = NormalizeTextValue(match.Groups["price"].Value);
 			string productHref = match.Groups["href"].Value;
 
 			if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(priceText))
@@ -136,7 +439,7 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 		}
 	}
 
-	private static MealSummary BuildSummary(MealItem[] meals)
+	private static MealSummary BuildSummary(IReadOnlyList<MealItem> meals)
 	{
 		string[] categories = [.. meals
 			.Select(meal => meal.Category)
@@ -144,7 +447,7 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 			.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)];
 
 		return new MealSummary(
-			meals.Length,
+			meals.Count,
 			categories.Length,
 			meals.Min(meal => meal.Price),
 			meals.Max(meal => meal.Price),
@@ -219,7 +522,7 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 		return new Heatmap(title, columns, mappedRows);
 	}
 
-	private static IReadOnlyList<Prediction> BuildPredictions(MealItem[] meals)
+	private static IReadOnlyList<Prediction> BuildPredictions(IReadOnlyList<MealItem> meals)
 	{
 		IGrouping<string, MealItem> dominantCategory = meals
 			.GroupBy(meal => meal.Category, StringComparer.OrdinalIgnoreCase)
@@ -241,8 +544,8 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 			.Take(3)
 			.Select(group => $"{group.Key} ({group.Count()})")];
 
-		float confidence = float.Round(dominantCategory.Count() / (float)meals.Length, 2);
-		float priceConfidence = float.Round(dominantBand.Count() / (float)meals.Length, 2);
+		decimal confidence = decimal.Round(dominantCategory.Count() / (decimal)meals.Count, 2);
+		decimal priceConfidence = decimal.Round(dominantBand.Count() / (decimal)meals.Count, 2);
 
 		return
 		[
@@ -257,7 +560,7 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 			new Prediction(
 				"Most likely recurring meal themes",
 				$"The most repeated keywords are {string.Join(", ", topKeywords)}, so future additions are most likely to reuse those themes.",
-				topKeywords.Length == 0 ? 0 : 0.65f)
+				topKeywords.Length == 0 ? 0m : 0.65m)
 		];
 	}
 
@@ -297,13 +600,13 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 		List<UnannouncedMealPrediction> predictions = [];
 		HashSet<string> generatedNames = new(StringComparer.OrdinalIgnoreCase);
 
-		for (int i = 0; i < dominantCategories.Length; i++)
+		for (int index = 0; index < dominantCategories.Length; index++)
 		{
-			string category = dominantCategories[i];
-			string protein = ProteinTerms[i % ProteinTerms.Length];
-			string style = StyleTerms[(i + 2) % StyleTerms.Length];
-			string flavor = FlavorTerms[(i + 4) % FlavorTerms.Length];
-			string keyword = topKeywords.Length == 0 ? "seasonal" : topKeywords[(i * 2) % topKeywords.Length];
+			string category = dominantCategories[index];
+			string protein = ProteinTerms[index % ProteinTerms.Length];
+			string style = StyleTerms[(index + 2) % StyleTerms.Length];
+			string flavor = FlavorTerms[(index + 4) % FlavorTerms.Length];
+			string keyword = topKeywords.Length == 0 ? "seasonal" : topKeywords[(index * 2) % topKeywords.Length];
 			string candidateName = $"{flavor} {protein} {style}";
 
 			if (existingNames.Contains(candidateName) || generatedNames.Contains(candidateName))
@@ -313,18 +616,19 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 
 			generatedNames.Add(candidateName);
 
-			decimal baseline = categoryAveragePrices.TryGetValue(category, out decimal avgPrice)
-				? avgPrice
+			decimal baseline = categoryAveragePrices.TryGetValue(category, out decimal averagePrice)
+				? averagePrice
 				: meals.Average(meal => meal.Price);
-			float predictedPrice = float.Round((float)(baseline + ((i - 1) * 0.75m)), 2);
-			if (predictedPrice < 5f)
+			decimal predictedPrice = decimal.Round(baseline + ((index - 1) * 0.75m), 2);
+			if (predictedPrice < 5m)
 			{
-				predictedPrice = 5f;
+				predictedPrice = 5m;
 			}
 
-			float confidence = float.Round(Math.Max(0.45f, 0.78f - (i * 0.1f)), 2);
+			decimal confidence = decimal.Round(Math.Max(0.45m, 0.78m - (index * 0.1m)), 2);
 			string rationale = $"This category appears frequently, and keywords like '{keyword}' recur across announced meals, suggesting a similar upcoming item.";
-			string[] predictionKeywords = [
+			string[] predictionKeywords =
+			[
 				flavor.ToLowerInvariant(),
 				protein.ToLowerInvariant(),
 				style.ToLowerInvariant(),
@@ -407,12 +711,12 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 			.Replace("</p>", " ", StringComparison.OrdinalIgnoreCase)
 			.Replace("<p>", " ", StringComparison.OrdinalIgnoreCase);
 
-		return StripHTML().Replace(withoutBreaks, " ");
+		return HtmlTagRegex().Replace(withoutBreaks, " ");
 	}
 
-	private static string NormalizeText(string value)
+	private static string NormalizeTextValue(string value)
 	{
-		return NormalizeText().Replace(WebUtility.HtmlDecode(value), " ").Trim();
+		return WhitespaceRegex().Replace(WebUtility.HtmlDecode(value), " ").Trim();
 	}
 
 	[GeneratedRegex("href\\s*=\\s*['\"](?<href>[^'\"]+)['\"]", RegexOptions.IgnoreCase)]
@@ -427,11 +731,24 @@ public sealed partial class MealAnalyticsService(HttpClient httpClient, IMemoryC
 	[GeneratedRegex("[A-Za-z][A-Za-z'`-]+", RegexOptions.CultureInvariant)]
 	private static partial Regex WordRegex();
 
-	private sealed record CategoryLink(string Name, string Url);
-
 	[GeneratedRegex("<[^>]+>", RegexOptions.Singleline)]
-	private static partial Regex StripHTML();
+	private static partial Regex HtmlTagRegex();
 
 	[GeneratedRegex("\\s+")]
-	private static partial Regex NormalizeText();
+	private static partial Regex WhitespaceRegex();
+
+	private sealed record DishRouteContext(int? LocationId, int? MealId, DateOnly? Date)
+	{
+		public static DishRouteContext Empty { get; } = new(null, null, null);
+	}
+
+	private sealed record DishMenuItemRaw(
+		DateOnly Date,
+		string MealName,
+		string Station,
+		string Category,
+		decimal? Price,
+		IReadOnlyList<string> Tags);
+
+	private sealed record CategoryLink(string Name, string Url);
 }

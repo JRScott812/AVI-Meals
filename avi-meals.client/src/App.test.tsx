@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
@@ -56,20 +56,42 @@ const mockAnalyticsResponse = {
 			confidence: 0.68,
 			keywords: ['citrus', 'chicken', 'skillet']
 		}
+	],
+	dailyMenus: [
+		{
+			date: '2026-01-05',
+			items: [
+				{
+					mealName: 'Monday Veggie Bowl',
+					station: 'Main Line',
+					category: 'Lunch',
+					price: 10.25,
+					tags: ['vegan', 'contains soy']
+				}
+			]
+		}
+	],
+	mealOccurrences: [
+		{
+			mealName: 'Monday Veggie Bowl',
+			occurrenceCount: 2
+		}
 	]
 };
 
 afterEach(() => {
+	cleanup();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 });
 
 describe('App', () => {
 	it('loads analytics and shows summary by default', async () => {
-		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+		const fetchMock = vi.fn().mockResolvedValue({
 			ok: true,
 			json: async () => mockAnalyticsResponse
-		}));
+		});
+		vi.stubGlobal('fetch', fetchMock);
 
 		render(<App />);
 
@@ -77,8 +99,10 @@ describe('App', () => {
 			expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
 		});
 
+		expect(fetchMock).toHaveBeenCalledWith('/api/meals', expect.objectContaining({ cache: 'no-store' }));
 		expect(screen.getByText(/Total meals/i)).toBeInTheDocument();
 		expect(screen.getByText(/Predicted unannounced meals/i)).toBeInTheDocument();
+		expect(screen.getByText(/^Legend$/)).toBeInTheDocument();
 	});
 
 	it('switches to meals page when the Meals button is clicked', async () => {
@@ -101,5 +125,31 @@ describe('App', () => {
 
 		expect(within(pagesNav!).getByRole('button', { name: 'Meals' })).toBeDisabled();
 		expect(within(pagesNav!).getByRole('button', { name: 'Summary' })).toBeEnabled();
+	});
+
+	it('shows an empty-state daily menus panel when the payload does not include dailyMenus', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => {
+				const { dailyMenus, ...legacyPayload } = mockAnalyticsResponse;
+				void dailyMenus;
+				return legacyPayload;
+			}
+		}));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+		});
+
+		const pagesNav = screen.getAllByText(/^Pages$/)[0].closest('nav');
+		expect(pagesNav).not.toBeNull();
+
+		const dailyMenusButton = within(pagesNav!).getByRole('button', { name: 'Daily menus' });
+		fireEvent.click(dailyMenusButton);
+
+		expect(screen.getByRole('heading', { name: 'Daily menus' })).toBeInTheDocument();
+		expect(screen.getByText(/No daily menus are currently available from AVI Dish/i)).toBeInTheDocument();
 	});
 });

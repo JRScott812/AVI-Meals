@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>AVI_Meals.Server</RootNamespace>
+    <UseAppHost>false</UseAppHost>
     <SpaRoot>..\avi-meals.client</SpaRoot>
     <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
     <SpaProxyServerUrl>https://localhost:61774</SpaProxyServerUrl>
