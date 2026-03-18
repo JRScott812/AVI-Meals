@@ -18,7 +18,8 @@ RUN CI=true dotnet publish AVI-Meals.Server/AVI-Meals.Server.csproj -c Release -
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=server-build /app/publish .
-# Debug: List contents of /app to verify DLL presence
-RUN ls -lh /app
+# Debug: List contents of /app and wwwroot to verify DLL and static assets presence
+RUN ls -lh /app && ls -lh /app/wwwroot || echo "No wwwroot directory"
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "ASPNETCORE_URLS=http://+:${PORT:-8080} dotnet AVI-Meals.Server.dll"]
+ENV ASPNETCORE_URLS=http://+:8080
+ENTRYPOINT ["dotnet", "AVI-Meals.Server.dll"]
