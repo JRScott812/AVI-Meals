@@ -59,9 +59,10 @@ namespace AVI_Meals.Server
 			app.UseAuthorization();
 			app.MapControllers();
 			// Health check endpoint for Heroku
-			app.MapGet("/health", () => {
+			app.MapGet("/health", () =>
+			{
 				long memBytes = GC.GetTotalMemory(forceFullCollection: false);
-				string memMB = ($"Memory usage: {memBytes / (1024 * 1024)} MB");
+				string memMB = $"Memory usage: {memBytes / (1024 * 1024)} MB";
 				Console.WriteLine($"[HEALTH] {memMB}");
 				return Results.Ok(memMB);
 			});
