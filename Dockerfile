@@ -24,5 +24,5 @@ COPY --from=server-build /app/publish .
 # Debug: List contents of /app and wwwroot to verify DLL and static assets presence
 RUN ls -lh /app && ls -lh /app/wwwroot || echo "No wwwroot directory"
 EXPOSE 8080
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:$PORT
 ENTRYPOINT ["dotnet", "AVI-Meals.Server.dll"]
