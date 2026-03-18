@@ -18,19 +18,27 @@ namespace AVI_Meals.Server
 			});
 
 			string[] allowedOrigins = GetCorsAllowedOrigins(builder.Configuration);
+			Console.WriteLine($"[CORS] Allowed origins: {string.Join(", ", allowedOrigins)}");
 			builder.Services.AddCors(options =>
 			{
 				options.AddPolicy(ClientCorsPolicyName, policyBuilder =>
 				{
-					if (allowedOrigins.Length == 0)
+					// Always apply CORS policy, even if only one origin is set
+					if (allowedOrigins.Length > 0)
 					{
-						return;
+						policyBuilder
+							.WithOrigins(allowedOrigins)
+							.AllowAnyHeader()
+							.AllowAnyMethod();
 					}
-
-					policyBuilder
-						.WithOrigins(allowedOrigins)
-						.AllowAnyHeader()
-						.AllowAnyMethod();
+					else
+					{
+						// Allow all origins if none are configured (for debugging only)
+						policyBuilder
+							.AllowAnyOrigin()
+							.AllowAnyHeader()
+							.AllowAnyMethod();
+					}
 				});
 			});
 
