@@ -58,6 +58,8 @@ namespace AVI_Meals.Server
 			app.UseCors(ClientCorsPolicyName);
 			app.UseAuthorization();
 			app.MapControllers();
+			// Health check endpoint for Heroku
+			app.MapGet("/health", () => Results.Ok("Healthy"));
 			app.MapFallbackToFile("/index.html");
 			app.Run();
 		}
