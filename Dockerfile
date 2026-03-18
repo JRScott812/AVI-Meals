@@ -18,5 +18,7 @@ RUN CI=true dotnet publish AVI-Meals.Server/AVI-Meals.Server.csproj -c Release -
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=server-build /app/publish .
+# Debug: List contents of /app to verify DLL presence
+RUN ls -lh /app
 EXPOSE 8080
 ENTRYPOINT ["sh", "-c", "ASPNETCORE_URLS=http://+:${PORT:-8080} dotnet AVI-Meals.Server.dll"]
