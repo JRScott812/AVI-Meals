@@ -77,7 +77,9 @@ namespace AVI_Meals.Server
 			// Log memory usage at startup
 			long startupMemBytes = GC.GetTotalMemory(forceFullCollection: false);
 			Console.WriteLine($"[STARTUP] Memory usage: {startupMemBytes / (1024 * 1024)} MB");
+			Console.WriteLine("[DEBUG] About to call app.MapFallbackToFile");
 			app.MapFallbackToFile("/index.html");
+			Console.WriteLine("[DEBUG] About to call app.Run()");
 			app.Run();
 		}
 
