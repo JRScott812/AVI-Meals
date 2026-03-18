@@ -59,7 +59,15 @@ namespace AVI_Meals.Server
 			app.UseAuthorization();
 			app.MapControllers();
 			// Health check endpoint for Heroku
-			app.MapGet("/health", () => Results.Ok("Healthy"));
+			app.MapGet("/health", () => {
+				long memBytes = GC.GetTotalMemory(forceFullCollection: false);
+				string memMB = ($"Memory usage: {memBytes / (1024 * 1024)} MB");
+				Console.WriteLine($"[HEALTH] {memMB}");
+				return Results.Ok(memMB);
+			});
+			// Log memory usage at startup
+			long startupMemBytes = GC.GetTotalMemory(forceFullCollection: false);
+			Console.WriteLine($"[STARTUP] Memory usage: {startupMemBytes / (1024 * 1024)} MB");
 			app.MapFallbackToFile("/index.html");
 			app.Run();
 		}
