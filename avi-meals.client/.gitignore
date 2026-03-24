@@ -11,6 +11,7 @@ dist/
 build/
 public/build/
 .vite/
+obj/
 
 # Vite / tooling cache
 .cache/
