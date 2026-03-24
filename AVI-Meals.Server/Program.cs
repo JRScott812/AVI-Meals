@@ -18,19 +18,27 @@ namespace AVI_Meals.Server
 			});
 
 			string[] allowedOrigins = GetCorsAllowedOrigins(builder.Configuration);
+			Console.WriteLine($"[CORS] Allowed origins: {string.Join(", ", allowedOrigins)}");
 			builder.Services.AddCors(options =>
 			{
 				options.AddPolicy(ClientCorsPolicyName, policyBuilder =>
 				{
-					if (allowedOrigins.Length == 0)
+					// Always apply CORS policy, even if only one origin is set
+					if (allowedOrigins.Length > 0)
 					{
-						return;
+						policyBuilder
+							.WithOrigins(allowedOrigins)
+							.AllowAnyHeader()
+							.AllowAnyMethod();
 					}
-
-					policyBuilder
-						.WithOrigins(allowedOrigins)
-						.AllowAnyHeader()
-						.AllowAnyMethod();
+					else
+					{
+						// Allow all origins if none are configured (for debugging only)
+						policyBuilder
+							.AllowAnyOrigin()
+							.AllowAnyHeader()
+							.AllowAnyMethod();
+					}
 				});
 			});
 
@@ -58,7 +66,20 @@ namespace AVI_Meals.Server
 			app.UseCors(ClientCorsPolicyName);
 			app.UseAuthorization();
 			app.MapControllers();
+			// Health check endpoint for Heroku
+			app.MapGet("/health", () =>
+			{
+				long memBytes = GC.GetTotalMemory(forceFullCollection: false);
+				string memMB = $"Memory usage: {memBytes / (1024 * 1024)} MB";
+				Console.WriteLine($"[HEALTH] {memMB}");
+				return Results.Ok(memMB);
+			});
+			// Log memory usage at startup
+			long startupMemBytes = GC.GetTotalMemory(forceFullCollection: false);
+			Console.WriteLine($"[STARTUP] Memory usage: {startupMemBytes / (1024 * 1024)} MB");
+			Console.WriteLine("[DEBUG] About to call app.MapFallbackToFile");
 			app.MapFallbackToFile("/index.html");
+			Console.WriteLine("[DEBUG] About to call app.Run()");
 			app.Run();
 		}
 

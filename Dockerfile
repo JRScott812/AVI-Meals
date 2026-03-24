@@ -12,11 +12,16 @@ WORKDIR /src
 ENV BuildingInsideDocker=true
 COPY . .
 COPY --from=client-build /src/avi-meals.client/dist ./avi-meals.client/dist
+# Ensure wwwroot is included in publish output
+RUN cp -r ./AVI-Meals.Server/wwwroot ./AVI-Meals.Server/wwwroot.bak || true
 RUN CI=true dotnet publish AVI-Meals.Server/AVI-Meals.Server.csproj -c Release -o /app/publish
+RUN cp -r ./AVI-Meals.Server/wwwroot.bak /app/publish/wwwroot || true
 
 # Final runtime image used by Heroku container stack.
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=server-build /app/publish .
+# Debug: List contents of /app and wwwroot to verify DLL and static assets presence
+RUN ls -lh /app && ls -lh /app/wwwroot || echo "No wwwroot directory"
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "ASPNETCORE_URLS=http://+:${PORT:-8080} dotnet AVI-Meals.Server.dll"]
+ENTRYPOINT ["dotnet", "AVI-Meals.Server.dll"]
