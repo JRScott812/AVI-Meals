@@ -361,8 +361,3 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-
-# VS Code Stuff
-.vscode/
-
-# Custom Repo Stuff
