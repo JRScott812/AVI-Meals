@@ -75,6 +75,10 @@ export default defineConfig(({ command }) => {
 			}
 		},
 		server: !isServeCommand ? undefined : {
+			// Bind to IPv4 loopback to avoid permission errors when IPv6 (::1) is restricted
+			host: '127.0.0.1',
+			// If the requested port is unavailable, allow Vite to try the next free port
+			strictPort: false,
 			proxy: {
 				'^/weatherforecast': {
 					target,
@@ -85,7 +89,8 @@ export default defineConfig(({ command }) => {
 					secure: false
 				}
 			},
-			port: parseInt(env.DEV_SERVER_PORT || '61774'),
+            // Use DEV_SERVER_PORT when set, otherwise allow Vite to pick any free port (0)
+			port: env.DEV_SERVER_PORT ? parseInt(env.DEV_SERVER_PORT) : 0,
 			https: {
 				key: fs.readFileSync(keyFilePath),
 				cert: fs.readFileSync(certFilePath)
