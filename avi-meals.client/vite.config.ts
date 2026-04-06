@@ -89,7 +89,7 @@ export default defineConfig(({ command }) => {
 					secure: false
 				}
 			},
-            // Use DEV_SERVER_PORT when set, otherwise allow Vite to pick any free port (0)
+			// Use DEV_SERVER_PORT when set, otherwise allow Vite to pick any free port (0)
 			port: env.DEV_SERVER_PORT ? parseInt(env.DEV_SERVER_PORT) : 0,
 			https: {
 				key: fs.readFileSync(keyFilePath),
