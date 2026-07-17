@@ -5,15 +5,18 @@ using Microsoft.Extensions.Caching.Memory;
 namespace AVI_Meals.Server.Services;
 
 /// <summary>
-/// Orchestrates dining-source fetches and builds the cached analytics snapshot.
+/// Orchestrates dining-source fetches, optional history persistence, and analytics.
 /// </summary>
-public sealed class MealAnalyticsService(HttpClient httpClient, IMemoryCache cache)
+public sealed class MealAnalyticsService(
+	HttpClient httpClient,
+	IMemoryCache cache,
+	MealHistoryStore historyStore)
 {
 	private const string CacheKey = "meal-analytics";
 	private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(30);
 	private static readonly SemaphoreSlim CacheLock = new(1, 1);
 	private const string PortalUrl = "https://connecttaylor.atriumcampus.com/index.php";
-	private const string DishSiteUrl = "https://dish.avifoodsystems.com/taylor";
+	private const string DishSiteUrl = "https://dish.avifoodsystems.com/taylor/183/week";
 
 	private readonly DiningHttpFetcher _http = new(httpClient);
 
@@ -45,7 +48,15 @@ public sealed class MealAnalyticsService(HttpClient httpClient, IMemoryCache cac
 		}
 	}
 
-	private async Task<MealAnalyticsResponse> BuildAnalyticsAsync(CancellationToken cancellationToken)
+	/// <summary>
+	/// Scrapes current catalogs and force-backfills as many Dish weeks as upstream still serves.
+	/// </summary>
+	public Task<MealAnalyticsResponse> FillDatabaseAsync(CancellationToken cancellationToken) =>
+		BuildAnalyticsAsync(cancellationToken, forceHistoryBackfill: true);
+
+	private async Task<MealAnalyticsResponse> BuildAnalyticsAsync(
+		CancellationToken cancellationToken,
+		bool forceHistoryBackfill = false)
 	{
 		DishMenuClient dishMenuClient = new(_http);
 		string portalHtml = await _http.GetHtmlAsync(PortalUrl, cancellationToken).ConfigureAwait(false);
@@ -80,9 +91,56 @@ public sealed class MealAnalyticsService(HttpClient httpClient, IMemoryCache cac
 			throw new InvalidOperationException("No meals were found in the public menu.");
 		}
 
-		IReadOnlyList<DailyMenu> dailyMenus = await dishMenuClient
+		(int LocationId, IReadOnlyList<int> MealIds)? dishContext = await dishMenuClient
+			.ResolveLocationAndMealIdsAsync(dishUrl, cancellationToken)
+			.ConfigureAwait(false);
+		int? locationId = dishContext?.LocationId;
+		IReadOnlyList<int>? mealIds = dishContext?.MealIds;
+
+		try
+		{
+			await historyStore.EnsureBackfillAsync(
+				(anchor, token) => locationId is null || mealIds is null || mealIds.Count == 0
+					? Task.FromResult<IReadOnlyList<DailyMenu>>([])
+					: dishMenuClient.BuildDailyMenusForDateAsync(anchor, locationId.Value, mealIds, token),
+				locationId,
+				cancellationToken,
+				force: forceHistoryBackfill,
+				maxWeeks: forceHistoryBackfill ? 104 : 12).ConfigureAwait(false);
+		}
+		catch (Exception exception) when (exception is not OperationCanceledException)
+		{
+			// History backfill is best-effort; live scrape should still succeed.
+		}
+
+		IReadOnlyList<DailyMenu> liveDailyMenus = await dishMenuClient
 			.BuildDailyMenusAsync(dishUrl, cancellationToken)
 			.ConfigureAwait(false);
+
+		IReadOnlyList<DailyMenu> dailyMenus = liveDailyMenus;
+		try
+		{
+			await historyStore.UpsertDailyMenusAsync(liveDailyMenus, locationId, cancellationToken).ConfigureAwait(false);
+			await historyStore.UpsertCatalogMealsAsync(meals, cancellationToken).ConfigureAwait(false);
+
+			IReadOnlyList<DailyMenu> storedMenus = await historyStore
+				.GetStoredDailyMenusAsync(cancellationToken)
+				.ConfigureAwait(false);
+			dailyMenus = MealHistoryStore.MergeDailyMenus(liveDailyMenus, storedMenus);
+
+			await historyStore.RecordScrapeRunAsync(
+				PortalUrl,
+				diningUrl,
+				menuUrl,
+				dailyMenus.Count,
+				meals.Count,
+				"ok",
+				cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception exception) when (exception is not OperationCanceledException)
+		{
+			dailyMenus = liveDailyMenus;
+		}
 
 		MealItem[] orderedMeals = [.. meals
 			.OrderBy(meal => meal.Category, StringComparer.OrdinalIgnoreCase)

@@ -9,6 +9,7 @@
 		<SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
 		<SpaProxyServerUrl>https://localhost:61774</SpaProxyServerUrl>
 		<ShouldRunBuildScript>false</ShouldRunBuildScript>
+		<UserSecretsId>avi-meals-server-local-secrets</UserSecretsId>
 	</PropertyGroup>
 	
 	<ItemGroup Condition="'$(BuildingInsideDocker)' != 'true'">
@@ -20,6 +21,11 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.OpenApi" />
 		<PackageReference Include="Microsoft.AspNetCore.SpaProxy" />
+		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 	</ItemGroup>
 	<!--
 		Keep local builds consistently formatted by auto-running formatters.

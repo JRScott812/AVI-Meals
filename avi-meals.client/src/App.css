@@ -225,6 +225,18 @@ a:hover {
 	color: var(--color-brand-deep);
 }
 
+.panel-note {
+	margin: 0 0 0.85rem;
+	color: var(--color-muted);
+	font-size: 0.95rem;
+}
+
+.day-toggle {
+	width: 100%;
+	text-align: left;
+	margin-bottom: 0.65rem;
+}
+
 .summary-list {
 	list-style: none;
 	padding: 0;

@@ -1,11 +1,13 @@
 using System.Net;
 using System.Text;
 
+using AVI_Meals.Server.Data;
 using AVI_Meals.Server.Services;
 
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -120,20 +122,36 @@ public sealed class MealsEndpointTests
 
 			builder.ConfigureAppConfiguration((_, configBuilder) =>
 			{
-				if (!clearCorsOrigins && string.IsNullOrWhiteSpace(allowedOrigin))
+				// Never let integration tests hit a real Neon/Postgres connection from user secrets.
+				Dictionary<string, string?> settings = new()
 				{
-					return;
-				}
+					["MealHistory:Disabled"] = "true",
+					["ConnectionStrings:DefaultConnection"] = string.Empty,
+					["DATABASE_URL"] = string.Empty
+				};
 
-				Dictionary<string, string?> settings = clearCorsOrigins
-					? new() { ["Cors:AllowedOrigins:0"] = string.Empty }
-					: new() { ["Cors:AllowedOrigins:0"] = allowedOrigin };
+				if (clearCorsOrigins)
+				{
+					settings["Cors:AllowedOrigins:0"] = string.Empty;
+				}
+				else if (!string.IsNullOrWhiteSpace(allowedOrigin))
+				{
+					settings["Cors:AllowedOrigins:0"] = allowedOrigin;
+				}
 
 				configBuilder.AddInMemoryCollection(settings);
 			});
 
+			_ = builder.UseSetting("MealHistory:Disabled", "true");
+			_ = builder.UseSetting("ConnectionStrings:DefaultConnection", string.Empty);
+
 			builder.ConfigureTestServices(services =>
 			{
+				// Integration tests must never touch a real Postgres/Neon instance from user secrets.
+				services.RemoveAll(typeof(MealsDbContext));
+				services.RemoveAll(typeof(DbContextOptions<MealsDbContext>));
+				services.RemoveAll(typeof(DbContextOptions));
+
 				services.RemoveAll(typeof(MealAnalyticsService));
 				services.AddHttpClient<MealAnalyticsService>()
 					.ConfigurePrimaryHttpMessageHandler(() => stubHandler ?? new StubDiningHttpMessageHandler())
@@ -171,15 +189,28 @@ public sealed class MealsEndpointTests
 		private const string DiningHtml = """
 		<html><body>
 		<a href="https://tayloru.catertrax.com/">Catering</a>
-		<a href="https://dish.avifoodsystems.com/taylor/999/4/2026-01-05/week">Dish menus</a>
+		<a href="https://dish.avifoodsystems.com/taylor/183/week">Dish menus</a>
 		</body></html>
 		""";
 
-		private const string DishLocationsJson = """
-		[
-			{ "id": 999, "name": "Taylor Dining Hall" },
-			{ "id": 1000, "name": "Other Location" }
-		]
+		private const string DishClientJson = """
+		{
+			"id": 107,
+			"name": "Taylor University",
+			"locations": [
+				{
+					"id": 183,
+					"name": "Hodson Culinary Center",
+					"isEnabled": true,
+					"meals": [
+						{ "id": 516, "name": "Brunch" },
+						{ "id": 514, "name": "Lunch" },
+						{ "id": 515, "name": "Dinner" },
+						{ "id": 513, "name": "Breakfast" }
+					]
+				}
+			]
+		}
 		""";
 
 		private const string DishWeeklyMenuJson = """
@@ -228,7 +259,7 @@ public sealed class MealsEndpointTests
 				var value when value.Contains("aviserves.com/taylor/meal-plans-and-dining.html", StringComparison.OrdinalIgnoreCase) => DiningHtml,
 				var value when value.Contains("tayloru.catertrax.com/menugrid.asp?mode=aff", StringComparison.OrdinalIgnoreCase) => MenuHtml,
 				var value when value.Contains("menuGrid.asp?mode=p&cg=3&c=21", StringComparison.OrdinalIgnoreCase) => CategoryHtml,
-				var value when value.Contains("dish.avifoodsystems.com/api/locations?client=taylor", StringComparison.OrdinalIgnoreCase) => DishLocationsJson,
+				var value when value.Contains("dish.avifoodsystems.com/api/client?clientName=taylor", StringComparison.OrdinalIgnoreCase) => DishClientJson,
 				var value when value.Contains("dish.avifoodsystems.com/api/menu-items/week", StringComparison.OrdinalIgnoreCase) => DishWeeklyMenuJson,
 				_ => "<html><body>Not Found</body></html>"
 			};

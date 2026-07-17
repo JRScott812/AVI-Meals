@@ -1,0 +1,196 @@
+using AVI_Meals.Server.Data;
+
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+
+#nullable disable
+
+namespace AVI_Meals.Server.Data.Migrations;
+
+[DbContext(typeof(MealsDbContext))]
+partial class MealsDbContextModelSnapshot : ModelSnapshot
+{
+	protected override void BuildModel(ModelBuilder modelBuilder)
+	{
+#pragma warning disable 612, 618
+		modelBuilder
+			.HasAnnotation("ProductVersion", "10.0.0")
+			.HasAnnotation("Relational:MaxIdentifierLength", 63);
+
+		modelBuilder.UseIdentityByDefaultColumns();
+
+		modelBuilder.Entity("AVI_Meals.Server.Data.CatalogMealEntity", b =>
+			{
+				b.Property<int>("Id")
+					.ValueGeneratedOnAdd()
+					.HasColumnType("integer");
+
+				NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+				b.Property<string>("Category")
+					.IsRequired()
+					.HasMaxLength(256)
+					.HasColumnType("character varying(256)");
+
+				b.Property<string>("Description")
+					.IsRequired()
+					.HasColumnType("text");
+
+				b.Property<string>("KeywordsJson")
+					.IsRequired()
+					.HasColumnType("text");
+
+				b.Property<string>("Name")
+					.IsRequired()
+					.HasMaxLength(512)
+					.HasColumnType("character varying(512)");
+
+				b.Property<decimal>("Price")
+					.HasColumnType("numeric");
+
+				b.Property<string>("PriceLabel")
+					.IsRequired()
+					.HasColumnType("text");
+
+				b.Property<string>("ProductUrl")
+					.IsRequired()
+					.HasMaxLength(2048)
+					.HasColumnType("character varying(2048)");
+
+				b.Property<DateTimeOffset>("UpdatedAtUtc")
+					.HasColumnType("timestamp with time zone");
+
+				b.HasKey("Id");
+
+				b.HasIndex("ProductUrl")
+					.IsUnique();
+
+				b.ToTable("catalog_meals", (string)null);
+			});
+
+		modelBuilder.Entity("AVI_Meals.Server.Data.MenuDayEntity", b =>
+			{
+				b.Property<int>("Id")
+					.ValueGeneratedOnAdd()
+					.HasColumnType("integer");
+
+				NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+				b.Property<DateOnly>("Date")
+					.HasColumnType("date");
+
+				b.Property<int?>("LocationId")
+					.HasColumnType("integer");
+
+				b.Property<DateTimeOffset>("UpdatedAtUtc")
+					.HasColumnType("timestamp with time zone");
+
+				b.HasKey("Id");
+
+				b.HasIndex("Date")
+					.IsUnique();
+
+				b.ToTable("menu_days", (string)null);
+			});
+
+		modelBuilder.Entity("AVI_Meals.Server.Data.MenuItemEntity", b =>
+			{
+				b.Property<int>("Id")
+					.ValueGeneratedOnAdd()
+					.HasColumnType("integer");
+
+				NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+				b.Property<string>("Category")
+					.IsRequired()
+					.HasMaxLength(256)
+					.HasColumnType("character varying(256)");
+
+				b.Property<string>("MealName")
+					.IsRequired()
+					.HasMaxLength(512)
+					.HasColumnType("character varying(512)");
+
+				b.Property<int>("MenuDayId")
+					.HasColumnType("integer");
+
+				b.Property<decimal?>("Price")
+					.HasColumnType("numeric");
+
+				b.Property<string>("Station")
+					.IsRequired()
+					.HasMaxLength(256)
+					.HasColumnType("character varying(256)");
+
+				b.Property<string>("TagsJson")
+					.IsRequired()
+					.HasColumnType("text");
+
+				b.HasKey("Id");
+
+				b.HasIndex("MenuDayId", "MealName", "Station")
+					.IsUnique();
+
+				b.ToTable("menu_items", (string)null);
+			});
+
+		modelBuilder.Entity("AVI_Meals.Server.Data.ScrapeRunEntity", b =>
+			{
+				b.Property<int>("Id")
+					.ValueGeneratedOnAdd()
+					.HasColumnType("integer");
+
+				NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+				b.Property<int>("CatalogMealCount")
+					.HasColumnType("integer");
+
+				b.Property<int>("DailyMenuCount")
+					.HasColumnType("integer");
+
+				b.Property<string>("DiningUrl")
+					.IsRequired()
+					.HasColumnType("text");
+
+				b.Property<string>("MenuUrl")
+					.IsRequired()
+					.HasColumnType("text");
+
+				b.Property<string>("PortalUrl")
+					.IsRequired()
+					.HasColumnType("text");
+
+				b.Property<DateTimeOffset>("RetrievedAtUtc")
+					.HasColumnType("timestamp with time zone");
+
+				b.Property<string>("Status")
+					.IsRequired()
+					.HasMaxLength(64)
+					.HasColumnType("character varying(64)");
+
+				b.HasKey("Id");
+
+				b.ToTable("scrape_runs", (string)null);
+			});
+
+		modelBuilder.Entity("AVI_Meals.Server.Data.MenuItemEntity", b =>
+			{
+				b.HasOne("AVI_Meals.Server.Data.MenuDayEntity", "MenuDay")
+					.WithMany("Items")
+					.HasForeignKey("MenuDayId")
+					.OnDelete(DeleteBehavior.Cascade)
+					.IsRequired();
+
+				b.Navigation("MenuDay");
+			});
+
+		modelBuilder.Entity("AVI_Meals.Server.Data.MenuDayEntity", b =>
+			{
+				b.Navigation("Items");
+			});
+#pragma warning restore 612, 618
+	}
+}

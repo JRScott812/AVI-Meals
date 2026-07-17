@@ -7,5 +7,6 @@
     <Build />
     <Deploy />
   </Project>
+  <Project Path="AVI-Meals.Server.Tests/AVI-Meals.Server.Tests.csproj" />
   <Project Path="AVI-Meals.Server/AVI-Meals.Server.csproj" />
 </Solution>

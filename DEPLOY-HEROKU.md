@@ -74,6 +74,36 @@ The client falls back to `/api/meals` when `VITE_API_BASE_URL` is not set, which
 - CORS origins are read from `Cors:AllowedOrigins`.
 - Client assets are built in the Docker client build stage and included in the published server output.
 
+## 6b) Neon meal history database (free)
+
+Meal history uses Neon Postgres when a connection string is configured. Without it, the API still scrapes live data but does not persist history.
+
+1. Create a free project at https://console.neon.tech
+2. Copy the connection string (URI or Npgsql format)
+3. Set it on the host:
+
+**Local (PowerShell user-secrets):**
+
+```powershell
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=...;Database=neondb;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true" --project AVI-Meals.Server
+```
+
+Or set `DATABASE_URL` to the Neon `postgresql://...` URI.
+
+**Azure App Service:**
+
+- Configuration → Application settings
+- Name: `ConnectionStrings__DefaultConnection`
+- Value: Neon Npgsql connection string (or set `DATABASE_URL`)
+
+**Heroku:**
+
+```powershell
+heroku config:set DATABASE_URL="postgresql://..." -a <your-app-name>
+```
+
+On startup the API runs EF migrations and, when the DB is empty, backfills about 12 weeks of Dish daily menus.
+
 ## 7) Verify deployment
 
 - Heroku API: `GET https://<your-app-name>.herokuapp.com/api/meals`

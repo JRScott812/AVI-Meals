@@ -1,8 +1,11 @@
 using System.Threading.RateLimiting;
 
+using AVI_Meals.Server.Data;
+using AVI_Meals.Server.Models;
 using AVI_Meals.Server.Services;
 
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
 
 namespace AVI_Meals.Server;
 
@@ -12,7 +15,7 @@ public class Program
 	private const string ApiRateLimitPolicyName = "api";
 	private const long MaxOutboundResponseBytes = 2 * 1024 * 1024;
 
-	public static void Main(string[] args)
+	public static async Task Main(string[] args)
 	{
 		WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 		ILogger startupLogger = LoggerFactory
@@ -75,11 +78,27 @@ public class Program
 					}));
 		});
 
+		string? connectionString = builder.Configuration.GetValue("MealHistory:Disabled", false)
+			? null
+			: DatabaseConnection.Resolve(builder.Configuration);
+		if (!string.IsNullOrWhiteSpace(connectionString))
+		{
+			_ = builder.Services.AddDbContext<MealsDbContext>(options =>
+				options.UseNpgsql(connectionString));
+			startupLogger.LogInformation("Meal history database is configured");
+		}
+		else
+		{
+			startupLogger.LogWarning(
+				"No ConnectionStrings:DefaultConnection or DATABASE_URL set; meal history persistence is disabled");
+		}
+
+		_ = builder.Services.AddSingleton<MealHistoryStore>();
 		_ = builder.Services.AddMemoryCache();
 		_ = builder.Services.AddTransient<SafeOutboundHandler>();
 		_ = builder.Services.AddHttpClient<MealAnalyticsService>(client =>
 			{
-				client.Timeout = TimeSpan.FromSeconds(30);
+				client.Timeout = TimeSpan.FromSeconds(120);
 				client.MaxResponseContentBufferSize = MaxOutboundResponseBytes;
 				client.DefaultRequestHeaders.UserAgent.ParseAdd("AVI-Meals/1.0");
 			})
@@ -96,6 +115,29 @@ public class Program
 
 		WebApplication app = builder.Build();
 		ILogger logger = app.Logger;
+
+		if (!string.IsNullOrWhiteSpace(connectionString))
+		{
+			using IServiceScope scope = app.Services.CreateScope();
+			MealsDbContext db = scope.ServiceProvider.GetRequiredService<MealsDbContext>();
+			db.Database.Migrate();
+			logger.LogInformation("Applied meal history database migrations");
+		}
+
+		if (args.Any(argument => string.Equals(argument, "--backfill", StringComparison.OrdinalIgnoreCase)))
+		{
+			logger.LogInformation("Running forced meal history backfill");
+			MealAnalyticsService analytics = app.Services.GetRequiredService<MealAnalyticsService>();
+			MealAnalyticsResponse filled = await analytics
+				.FillDatabaseAsync(CancellationToken.None)
+				.ConfigureAwait(false);
+			logger.LogInformation(
+				"Backfill complete: {CatalogCount} catalog meals, {DayCount} menu days, {OccurrenceCount} occurrence rows",
+				filled.Meals.Count,
+				filled.DailyMenus.Count,
+				filled.MealOccurrences.Count);
+			return;
+		}
 
 		_ = app.UseForwardedHeaders();
 		_ = app.Use(async (context, next) =>
@@ -127,13 +169,13 @@ public class Program
 
 		logger.LogInformation("AVI-Meals server starting");
 		_ = app.MapFallbackToFile("/index.html");
-		app.Run();
+		await app.RunAsync().ConfigureAwait(false);
 	}
 
 	/// <summary>
 	/// Reads explicitly allowed client origins for cross-origin API calls.
 	/// </summary>
-	private static string[] GetCorsAllowedOrigins(IConfiguration configuration)
+	private static string[] GetCorsAllowedOrigins(ConfigurationManager configuration)
 	{
 		return configuration
 			.GetSection("Cors:AllowedOrigins")

@@ -152,4 +152,26 @@ describe('App', () => {
 		expect(screen.getByRole('heading', { name: 'Daily menus' })).toBeInTheDocument();
 		expect(screen.getByText(/No daily menus are currently available from AVI Dish/i)).toBeInTheDocument();
 	});
+
+	it('expands a daily menu day when toggled', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => mockAnalyticsResponse
+		}));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+		});
+
+		const pagesNav = screen.getAllByText(/^Pages$/)[0].closest('nav');
+		fireEvent.click(within(pagesNav!).getByRole('button', { name: 'Daily menus' }));
+
+		expect(screen.getByText(/1 day in history/i)).toBeInTheDocument();
+		const dayToggle = screen.getByRole('button', { name: /1 item/i });
+		fireEvent.click(dayToggle);
+		expect(screen.getByText('Main Line')).toBeInTheDocument();
+		expect(screen.getByText('Monday Veggie Bowl')).toBeInTheDocument();
+	});
 });
