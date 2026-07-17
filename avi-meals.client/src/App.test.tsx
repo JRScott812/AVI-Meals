@@ -27,13 +27,14 @@ const mockAnalyticsResponse = {
 	],
 	heatmaps: [
 		{
-			title: 'Category vs price band',
-			columns: ['Under $10'],
+			title: 'Station vs meal type',
+			rowHeader: 'Station',
+			columns: ['Lunch'],
 			rows: [
 				{
-					label: 'Breakfast',
+					label: 'Main Line',
 					cells: [
-						{ label: 'Under $10', value: 1, bucket: 4 }
+						{ label: 'Lunch', value: 1, bucket: 4 }
 					]
 				}
 			]
@@ -41,17 +42,18 @@ const mockAnalyticsResponse = {
 	],
 	predictions: [
 		{
-			title: 'Most likely menu focus',
-			detail: 'Breakfast has the deepest lineup.',
+			title: 'Most active Hodson station',
+			detail: 'Main Line accounts for most plated items.',
 			confidence: 0.8
 		}
 	],
 	unannouncedMealPredictions: [
 		{
 			name: 'Citrus Chicken Skillet',
-			category: 'Breakfast',
+			station: 'MainLine',
+			mealType: 'Lunch',
+			category: 'Pizza & Pasta',
 			rationale: 'Recurring keywords indicate this style.',
-			predictedPrice: 10.5,
 			confidence: 0.68,
 			keywords: ['citrus', 'chicken', 'skillet']
 		}
@@ -102,6 +104,43 @@ describe('App', () => {
 		expect(screen.getByText(/Total meals/i)).toBeInTheDocument();
 		expect(screen.getByText(/Predicted unannounced meals/i)).toBeInTheDocument();
 		expect(screen.getByText(/^Legend$/)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /Dark mode|Light mode/i })).toBeInTheDocument();
+	});
+
+	it('toggles dark mode and persists the preference', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => mockAnalyticsResponse
+		}));
+
+		const storage = new Map<string, string>();
+		vi.stubGlobal('localStorage', {
+			getItem: (key: string) => storage.get(key) ?? null,
+			setItem: (key: string, value: string) => {
+				storage.set(key, value);
+			},
+			removeItem: (key: string) => {
+				storage.delete(key);
+			},
+			clear: () => {
+				storage.clear();
+			},
+			key: () => null,
+			length: 0
+		});
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+		});
+
+		const themeButton = screen.getByRole('button', { name: /Switch to dark mode|Dark mode/i });
+		fireEvent.click(themeButton);
+
+		expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+		expect(storage.get('avi-meals-theme')).toBe('dark');
+		expect(screen.getByRole('button', { name: /Switch to light mode|Light mode/i })).toBeInTheDocument();
 	});
 
 	it('switches to catering catalog page when the nav button is clicked', async () => {

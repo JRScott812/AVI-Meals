@@ -152,9 +152,9 @@ public sealed class MealAnalyticsService(
 			DateTimeOffset.UtcNow,
 			MealAnalyticsBuilder.BuildSummary(orderedMeals),
 			orderedMeals,
-			MealAnalyticsBuilder.BuildHeatmaps(orderedMeals),
-			MealAnalyticsBuilder.BuildPredictions(orderedMeals),
-			MealAnalyticsBuilder.BuildUnannouncedMealPredictions(orderedMeals),
+			MealAnalyticsBuilder.BuildHeatmaps(orderedMeals, dailyMenus),
+			MealAnalyticsBuilder.BuildPredictions(orderedMeals, dailyMenus),
+			MealAnalyticsBuilder.BuildUnannouncedMealPredictions(orderedMeals, dailyMenus),
 			dailyMenus,
 			MealAnalyticsBuilder.BuildMealOccurrences(orderedMeals, dailyMenus));
 	}

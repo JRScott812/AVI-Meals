@@ -30,6 +30,7 @@ export function HeatmapsSection({ analytics }: HeatmapsSectionProps) {
 	return (
 		<section className="panel">
 			<h2>Heatmaps</h2>
+			<p className="panel-note">Built from Hodson residential menu history (station, meal period, and weekday patterns).</p>
 			<div className="heatmap-legend" aria-label="Heatmap legend">
 				<span className="heatmap-legend-label">Legend</span>
 				<div className="heatmap-legend-items">
@@ -47,7 +48,7 @@ export function HeatmapsSection({ analytics }: HeatmapsSectionProps) {
 								<caption className="visually-hidden">{heatmap.title}</caption>
 								<thead>
 									<tr>
-										<th scope="col">Category</th>
+										<th scope="col">{heatmap.rowHeader}</th>
 										{heatmap.columns.map(column => (
 											<th key={column} scope="col">{column}</th>
 										))}

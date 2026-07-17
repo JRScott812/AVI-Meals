@@ -39,6 +39,7 @@ public sealed record MealItem(
 
 public sealed record Heatmap(
 	string Title,
+	string RowHeader,
 	IReadOnlyList<string> Columns,
 	IReadOnlyList<HeatmapRow> Rows);
 
@@ -58,9 +59,10 @@ public sealed record Prediction(
 
 public sealed record UnannouncedMealPrediction(
 	string Name,
-	CateringCategory Category,
+	DiningStation Station,
+	MealType MealType,
+	string Category,
 	string Rationale,
-	decimal PredictedPrice,
 	decimal Confidence,
 	IReadOnlyList<string> Keywords);
 

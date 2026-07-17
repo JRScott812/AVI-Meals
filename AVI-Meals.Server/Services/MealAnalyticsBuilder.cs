@@ -1,30 +1,55 @@
+using System.Globalization;
+
 using AVI_Meals.Server.Models;
 
 namespace AVI_Meals.Server.Services;
 
 /// <summary>
-/// Derives summary, heatmaps, predictions, and occurrence stats from meal catalogs.
+/// Derives summary, heatmaps, predictions, and occurrence stats from Hodson menus and catering catalogs.
 /// </summary>
 internal static class MealAnalyticsBuilder
 {
-	private static readonly string[] ProteinTerms = ["Chicken", "Turkey", "Pork", "Beef", "Tofu", "Veggie", "Falafel", "Egg"];
-	private static readonly string[] StyleTerms = ["Bowl", "Wrap", "Skillet", "Pasta", "Salad", "Flatbread", "Tacos", "Sandwich"];
-	private static readonly string[] FlavorTerms = ["Garden", "Smoky", "Harvest", "Herb", "Citrus", "Maple", "Southwest", "Mediterranean"];
+	private static readonly MealType[] MealTypeColumns =
+	[
+		MealType.Breakfast,
+		MealType.Brunch,
+		MealType.Lunch,
+		MealType.Dinner
+	];
+
+	private static readonly DayOfWeek[] WeekdayColumns =
+	[
+		DayOfWeek.Monday,
+		DayOfWeek.Tuesday,
+		DayOfWeek.Wednesday,
+		DayOfWeek.Thursday,
+		DayOfWeek.Friday,
+		DayOfWeek.Saturday,
+		DayOfWeek.Sunday
+	];
 
 	public static IReadOnlyList<MealOccurrence> BuildMealOccurrences(
 		IReadOnlyList<MealItem> meals,
 		IReadOnlyList<DailyMenu> dailyMenus)
 	{
-		IEnumerable<string> primaryNames = meals
-			.Select(meal => meal.Name)
-			.Where(name => !string.IsNullOrWhiteSpace(name));
-		IEnumerable<string> dailyNames = dailyMenus
-			.SelectMany(day => day.Items)
-			.Select(item => item.MealName)
-			.Where(name => !string.IsNullOrWhiteSpace(name));
+		List<MealOccurrence> fromHistory = [.. dailyMenus
+			.SelectMany(day => day.Items.Select(item => (day.Date, Name: item.MealName.Trim())))
+			.Where(entry => !string.IsNullOrWhiteSpace(entry.Name))
+			.GroupBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+			.Select(group => new MealOccurrence(
+				group.First().Name,
+				group.Select(entry => entry.Date).Distinct().Count()))];
 
-		return [.. primaryNames
-			.Concat(dailyNames)
+		if (fromHistory.Count > 0)
+		{
+			return [.. fromHistory
+				.OrderByDescending(item => item.OccurrenceCount)
+				.ThenBy(item => item.MealName, StringComparer.OrdinalIgnoreCase)];
+		}
+
+		return [.. meals
+			.Select(meal => meal.Name)
+			.Where(name => !string.IsNullOrWhiteSpace(name))
 			.GroupBy(name => name.Trim(), StringComparer.OrdinalIgnoreCase)
 			.Select(group => new MealOccurrence(group.First(), group.Count()))
 			.OrderByDescending(item => item.OccurrenceCount)
@@ -33,6 +58,11 @@ internal static class MealAnalyticsBuilder
 
 	public static MealSummary BuildSummary(IReadOnlyList<MealItem> meals)
 	{
+		if (meals.Count == 0)
+		{
+			return new MealSummary(0, 0, 0m, 0m, 0m, []);
+		}
+
 		CateringCategory[] categories = [.. meals
 			.Select(meal => meal.Category)
 			.Distinct()
@@ -47,172 +77,314 @@ internal static class MealAnalyticsBuilder
 			categories);
 	}
 
-	public static IReadOnlyList<Heatmap> BuildHeatmaps(IReadOnlyList<MealItem> meals)
+	public static IReadOnlyList<Heatmap> BuildHeatmaps(
+		IReadOnlyList<MealItem> meals,
+		IReadOnlyList<DailyMenu> dailyMenus)
 	{
-		CateringCategory[] categories = [.. meals
-			.Select(meal => meal.Category)
-			.Distinct()
-			.OrderBy(category => category)];
+		DailyMenuItem[] items = [.. dailyMenus.SelectMany(day => day.Items)];
+		if (items.Length == 0)
+		{
+			return BuildCateringFallbackHeatmaps(meals);
+		}
 
-		string[] priceBands = ["Under $10", "$10-$14.99", "$15-$19.99", "$20+"];
-		HeatmapRow[] categoryByPriceRows = [.. categories
-			.Select(category => new HeatmapRow(
-				MealTaxonomy.FormatCateringCategory(category),
-				[.. priceBands.Select(band => new HeatmapCell(
-					band,
-					meals.Count(meal => meal.Category == category && GetPriceBand(meal.Price) == band),
-					0))]))];
-
-		string[] topKeywords = [.. meals
-			.SelectMany(meal => meal.Keywords)
-			.GroupBy(keyword => keyword, StringComparer.OrdinalIgnoreCase)
+		string[] mealTypeLabels = [.. MealTypeColumns.Select(FormatMealType)];
+		DiningStation[] topStations = [.. items
+			.GroupBy(item => item.Station)
 			.OrderByDescending(group => group.Count())
-			.ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-			.Take(6)
+			.ThenBy(group => group.Key)
+			.Take(10)
 			.Select(group => group.Key)];
 
-		HeatmapRow[] categoryByKeywordRows = [.. categories
-			.Select(category => new HeatmapRow(
-				MealTaxonomy.FormatCateringCategory(category),
-				[.. topKeywords.Select(keyword => new HeatmapCell(
-					keyword,
-					meals.Count(meal => meal.Category == category
-						&& meal.Keywords.Contains(keyword, StringComparer.OrdinalIgnoreCase)),
-					0))]))];
+		HeatmapRow[] stationByMealTypeRows = [.. topStations.Select(station => new HeatmapRow(
+			MealTaxonomy.FormatStation(station),
+			[.. MealTypeColumns.Select(mealType => new HeatmapCell(
+				FormatMealType(mealType),
+				items.Count(item => item.Station == station && item.MealType == mealType),
+				0))]))];
 
-		return
+		string[] weekdayLabels = [.. WeekdayColumns.Select(FormatWeekday)];
+		HeatmapRow[] stationByWeekdayRows = [.. topStations.Select(station => new HeatmapRow(
+			MealTaxonomy.FormatStation(station),
+			[.. WeekdayColumns.Select(weekday => new HeatmapCell(
+				FormatWeekday(weekday),
+				dailyMenus.Sum(day => day.Date.DayOfWeek == weekday
+					? day.Items.Count(item => item.Station == station)
+					: 0),
+				0))]))];
+
+		string[] topCategories = [.. items
+			.Where(item => !string.IsNullOrWhiteSpace(item.Category))
+			.GroupBy(item => item.Category.Trim(), StringComparer.OrdinalIgnoreCase)
+			.OrderByDescending(group => group.Count())
+			.ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+			.Take(10)
+			.Select(group => group.First().Category.Trim())];
+
+		HeatmapRow[] categoryByMealTypeRows = [.. topCategories.Select(category => new HeatmapRow(
+			category,
+			[.. MealTypeColumns.Select(mealType => new HeatmapCell(
+				FormatMealType(mealType),
+				items.Count(item => item.MealType == mealType
+					&& string.Equals(item.Category, category, StringComparison.OrdinalIgnoreCase)),
+				0))]))];
+
+		List<Heatmap> heatmaps =
 		[
-			BuildHeatmap("Category vs price band", priceBands, categoryByPriceRows),
-			BuildHeatmap("Category vs common keywords", topKeywords, categoryByKeywordRows)
+			BuildHeatmap("Station vs meal type", "Station", mealTypeLabels, stationByMealTypeRows),
+			BuildHeatmap("Station vs weekday", "Station", weekdayLabels, stationByWeekdayRows)
 		];
+
+		if (topCategories.Length > 0)
+		{
+			heatmaps.Add(BuildHeatmap("Dish category vs meal type", "Category", mealTypeLabels, categoryByMealTypeRows));
+		}
+
+		return heatmaps;
 	}
 
-	public static IReadOnlyList<Prediction> BuildPredictions(IReadOnlyList<MealItem> meals)
+	public static IReadOnlyList<Prediction> BuildPredictions(
+		IReadOnlyList<MealItem> meals,
+		IReadOnlyList<DailyMenu> dailyMenus)
 	{
-		IGrouping<CateringCategory, MealItem> dominantCategory = meals
-			.GroupBy(meal => meal.Category)
+		DailyMenuItem[] items = [.. dailyMenus.SelectMany(day => day.Items)];
+		if (items.Length == 0)
+		{
+			return BuildCateringFallbackPredictions(meals);
+		}
+
+		int dayCount = Math.Max(1, dailyMenus.Count);
+		IGrouping<DiningStation, DailyMenuItem> topStation = items
+			.GroupBy(item => item.Station)
 			.OrderByDescending(group => group.Count())
 			.ThenBy(group => group.Key)
 			.First();
 
-		IGrouping<string, MealItem> dominantBand = meals
-			.GroupBy(meal => GetPriceBand(meal.Price), StringComparer.OrdinalIgnoreCase)
+		IGrouping<MealType, DailyMenuItem> topMealType = items
+			.Where(item => item.MealType != MealType.Unknown)
+			.GroupBy(item => item.MealType)
 			.OrderByDescending(group => group.Count())
-			.ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+			.ThenBy(group => group.Key)
+			.DefaultIfEmpty(items.GroupBy(item => item.MealType).First())
 			.First();
 
-		string[] topKeywords = [.. meals
-			.SelectMany(meal => meal.Keywords)
-			.GroupBy(keyword => keyword, StringComparer.OrdinalIgnoreCase)
-			.OrderByDescending(group => group.Count())
-			.ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-			.Take(3)
-			.Select(group => $"{group.Key} ({group.Count()})")];
+		var busiestWeekday = dailyMenus
+			.GroupBy(day => day.Date.DayOfWeek)
+			.Select(group => new
+			{
+				Day = group.Key,
+				ItemCount = group.Sum(day => day.Items.Count),
+				DayCount = group.Count()
+			})
+			.OrderByDescending(entry => entry.ItemCount)
+			.ThenBy(entry => entry.Day)
+			.First();
 
-		decimal confidence = decimal.Round(dominantCategory.Count() / (decimal)meals.Count, 2);
-		decimal priceConfidence = decimal.Round(dominantBand.Count() / (decimal)meals.Count, 2);
-		string categoryLabel = MealTaxonomy.FormatCateringCategory(dominantCategory.Key);
+		MealOccurrence[] recurring = [.. BuildMealOccurrences([], dailyMenus).Take(5)];
+		string recurringSummary = recurring.Length == 0
+			? "No strong repeat dishes yet"
+			: string.Join(", ", recurring.Select(item => $"{item.MealName} ({item.OccurrenceCount} days)"));
+
+		decimal stationConfidence = decimal.Round(topStation.Count() / (decimal)items.Length, 2);
+		decimal mealTypeConfidence = decimal.Round(topMealType.Count() / (decimal)items.Length, 2);
+		decimal weekdayConfidence = decimal.Round(
+			busiestWeekday.ItemCount / (decimal)Math.Max(1, items.Length),
+			2);
+		decimal recurrenceConfidence = recurring.Length == 0
+			? 0m
+			: decimal.Round(Math.Min(0.9m, recurring[0].OccurrenceCount / (decimal)dayCount), 2);
 
 		return
 		[
 			new Prediction(
-				"Most likely menu focus",
-				$"{categoryLabel} has the deepest lineup with {dominantCategory.Count()} meals, so similar menus are most likely to emphasize that category.",
-				confidence),
+				"Most active Hodson station",
+				$"{MealTaxonomy.FormatStation(topStation.Key)} accounts for {topStation.Count()} of {items.Length} plated items across {dayCount} days, so it is the strongest station signal in the dining hall history.",
+				stationConfidence),
 			new Prediction(
-				"Most likely price range",
-				$"{dominantBand.Key} contains {dominantBand.Count()} listed meals, which makes it the strongest pricing cluster in the current menu.",
-				priceConfidence),
+				"Dominant meal period",
+				$"{FormatMealType(topMealType.Key)} carries {topMealType.Count()} items in the stored history, making it the period most likely to keep the broadest lineup.",
+				mealTypeConfidence),
 			new Prediction(
-				"Most likely recurring meal themes",
-				$"The most repeated keywords are {string.Join(", ", topKeywords)}, so future additions are most likely to reuse those themes.",
-				topKeywords.Length == 0 ? 0m : 0.65m)
+				"Busiest weekday pattern",
+				$"{FormatWeekday(busiestWeekday.Day)} averages the heaviest menus ({busiestWeekday.ItemCount} items over {busiestWeekday.DayCount} sampled day(s)), so expect denser station coverage then.",
+				weekdayConfidence),
+			new Prediction(
+				"Dishes most likely to return",
+				$"The most persistent Hodson dishes are {recurringSummary}. Items that already rotate through many days are the best candidates to reappear.",
+				recurrenceConfidence)
 		];
 	}
 
-	public static IReadOnlyList<UnannouncedMealPrediction> BuildUnannouncedMealPredictions(IReadOnlyList<MealItem> meals)
+	public static IReadOnlyList<UnannouncedMealPrediction> BuildUnannouncedMealPredictions(
+		IReadOnlyList<MealItem> meals,
+		IReadOnlyList<DailyMenu> dailyMenus)
 	{
-		CateringCategory[] dominantCategories = [.. meals
-			.GroupBy(meal => meal.Category)
-			.OrderByDescending(group => group.Count())
-			.ThenBy(group => group.Key)
-			.Take(3)
-			.Select(group => group.Key)];
+		DailyMenuItem[] items = [.. dailyMenus.SelectMany(day => day.Items)];
+		if (items.Length == 0)
+		{
+			return BuildCateringFallbackUnannounced(meals);
+		}
 
-		if (dominantCategories.Length == 0)
+		var stationProfiles = items
+			.GroupBy(item => item.Station)
+			.OrderByDescending(group => group.Count())
+			.Take(4)
+			.Select(group =>
+			{
+				MealType mealType = group
+					.Where(item => item.MealType != MealType.Unknown)
+					.GroupBy(item => item.MealType)
+					.OrderByDescending(mealGroup => mealGroup.Count())
+					.Select(mealGroup => mealGroup.Key)
+					.DefaultIfEmpty(MealType.Lunch)
+					.First();
+				string category = group
+					.Where(item => !string.IsNullOrWhiteSpace(item.Category))
+					.GroupBy(item => item.Category.Trim(), StringComparer.OrdinalIgnoreCase)
+					.OrderByDescending(categoryGroup => categoryGroup.Count())
+					.Select(categoryGroup => categoryGroup.First().Category.Trim())
+					.DefaultIfEmpty("Homestyle")
+					.First();
+				string[] tokens = [.. group
+					.SelectMany(item => MealKeywords.Extract(item.MealName, string.Empty))
+					.GroupBy(token => token, StringComparer.OrdinalIgnoreCase)
+					.OrderByDescending(tokenGroup => tokenGroup.Count())
+					.Take(6)
+					.Select(tokenGroup => tokenGroup.Key)];
+				return new
+				{
+					Station = group.Key,
+					MealType = mealType,
+					Category = category,
+					Tokens = tokens,
+					Count = group.Count()
+				};
+			})
+			.Where(profile => profile.Tokens.Length >= 2)
+			.ToArray();
+
+		if (stationProfiles.Length == 0)
 		{
 			return [];
 		}
 
-		Dictionary<CateringCategory, decimal> categoryAveragePrices = meals
-			.GroupBy(meal => meal.Category)
-			.ToDictionary(
-				group => group.Key,
-				group => decimal.Round(group.Average(meal => meal.Price), 2));
-
-		string[] topKeywords = [.. meals
-			.SelectMany(meal => meal.Keywords)
-			.GroupBy(keyword => keyword, StringComparer.OrdinalIgnoreCase)
-			.OrderByDescending(group => group.Count())
-			.ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-			.Take(10)
-			.Select(group => group.Key)];
-
-		HashSet<string> existingNames = meals
-			.Select(meal => meal.Name)
+		HashSet<string> existingNames = items
+			.Select(item => item.MealName.Trim())
 			.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
 		List<UnannouncedMealPrediction> predictions = [];
 		HashSet<string> generatedNames = new(StringComparer.OrdinalIgnoreCase);
+		string[] connectors = ["Garden", "Roasted", "Crispy", "Herb", "Seasonal", "Smoky"];
 
-		for (int index = 0; index < dominantCategories.Length; index++)
+		for (int index = 0; index < stationProfiles.Length; index++)
 		{
-			CateringCategory category = dominantCategories[index];
-			string protein = ProteinTerms[index % ProteinTerms.Length];
-			string style = StyleTerms[(index + 2) % StyleTerms.Length];
-			string flavor = FlavorTerms[(index + 4) % FlavorTerms.Length];
-			string keyword = topKeywords.Length == 0 ? "seasonal" : topKeywords[index * 2 % topKeywords.Length];
-			string candidateName = $"{flavor} {protein} {style}";
-
+			var profile = stationProfiles[index];
+			string lead = connectors[index % connectors.Length];
+			string body = string.Join(' ', profile.Tokens.Take(2).Select(ToTitleCase));
+			string candidateName = $"{lead} {body}".Trim();
 			if (existingNames.Contains(candidateName) || generatedNames.Contains(candidateName))
 			{
-				candidateName = $"{flavor} {protein} {style} Special";
+				candidateName = $"{lead} {body} Bowl";
 			}
 
-			_ = generatedNames.Add(candidateName);
-
-			decimal baseline = categoryAveragePrices.TryGetValue(category, out decimal averagePrice)
-				? averagePrice
-				: meals.Average(meal => meal.Price);
-			decimal predictedPrice = decimal.Round(baseline + ((index - 1) * 0.75m), 2);
-			if (predictedPrice < 5m)
+			if (existingNames.Contains(candidateName) || !generatedNames.Add(candidateName))
 			{
-				predictedPrice = 5m;
+				continue;
 			}
 
-			decimal confidence = decimal.Round(Math.Max(0.45m, 0.78m - (index * 0.1m)), 2);
-			string rationale = $"This category appears frequently, and keywords like '{keyword}' recur across announced meals, suggesting a similar upcoming item.";
-			string[] predictionKeywords =
-			[
-				flavor.ToLowerInvariant(),
-				protein.ToLowerInvariant(),
-				style.ToLowerInvariant(),
-				keyword.ToLowerInvariant()
-			];
+			decimal confidence = decimal.Round(
+				Math.Clamp(0.42m + (profile.Count / (decimal)Math.Max(20, items.Length)), 0.45m, 0.82m),
+				2);
+			string rationale =
+				$"{MealTaxonomy.FormatStation(profile.Station)} repeatedly serves {profile.Category.ToLowerInvariant()} during {FormatMealType(profile.MealType).ToLowerInvariant()}, and tokens like '{profile.Tokens[0]}' keep showing up—so a nearby unannounced special is plausible.";
 
 			predictions.Add(new UnannouncedMealPrediction(
 				candidateName,
-				category,
+				profile.Station,
+				profile.MealType,
+				profile.Category,
 				rationale,
-				predictedPrice,
 				confidence,
-				predictionKeywords));
+				profile.Tokens.Take(4).ToArray()));
 		}
 
 		return predictions;
 	}
 
-	private static Heatmap BuildHeatmap(string title, IReadOnlyList<string> columns, IReadOnlyList<HeatmapRow> rows)
+	private static IReadOnlyList<Heatmap> BuildCateringFallbackHeatmaps(IReadOnlyList<MealItem> meals)
+	{
+		if (meals.Count == 0)
+		{
+			return [];
+		}
+
+		CateringCategory[] categories = [.. meals.Select(meal => meal.Category).Distinct().OrderBy(category => category)];
+		string[] priceBands = ["Under $10", "$10-$14.99", "$15-$19.99", "$20+"];
+		HeatmapRow[] rows = [.. categories.Select(category => new HeatmapRow(
+			MealTaxonomy.FormatCateringCategory(category),
+			[.. priceBands.Select(band => new HeatmapCell(
+				band,
+				meals.Count(meal => meal.Category == category && GetPriceBand(meal.Price) == band),
+				0))]))];
+
+		return [BuildHeatmap("Catering category vs price band", "Category", priceBands, rows)];
+	}
+
+	private static IReadOnlyList<Prediction> BuildCateringFallbackPredictions(IReadOnlyList<MealItem> meals)
+	{
+		if (meals.Count == 0)
+		{
+			return [];
+		}
+
+		IGrouping<CateringCategory, MealItem> dominantCategory = meals
+			.GroupBy(meal => meal.Category)
+			.OrderByDescending(group => group.Count())
+			.First();
+
+		return
+		[
+			new Prediction(
+				"Catering catalog focus",
+				$"{MealTaxonomy.FormatCateringCategory(dominantCategory.Key)} leads the public CaterTrax catalog with {dominantCategory.Count()} items. Hodson daily history is unavailable for richer residential predictions.",
+				decimal.Round(dominantCategory.Count() / (decimal)meals.Count, 2))
+		];
+	}
+
+	private static IReadOnlyList<UnannouncedMealPrediction> BuildCateringFallbackUnannounced(IReadOnlyList<MealItem> meals)
+	{
+		if (meals.Count == 0)
+		{
+			return [];
+		}
+
+		string[] keywords = [.. meals
+			.SelectMany(meal => meal.Keywords)
+			.GroupBy(keyword => keyword, StringComparer.OrdinalIgnoreCase)
+			.OrderByDescending(group => group.Count())
+			.Take(4)
+			.Select(group => group.Key)];
+
+		string name = keywords.Length >= 2
+			? $"{ToTitleCase(keywords[0])} {ToTitleCase(keywords[1])} Special"
+			: "Seasonal Campus Special";
+
+		return
+		[
+			new UnannouncedMealPrediction(
+				name,
+				DiningStation.Homestyle,
+				MealType.Lunch,
+				"Catering",
+				"Generated from CaterTrax keyword patterns because Hodson daily history was empty.",
+				0.4m,
+				keywords)
+		];
+	}
+
+	private static Heatmap BuildHeatmap(
+		string title,
+		string rowHeader,
+		IReadOnlyList<string> columns,
+		IReadOnlyList<HeatmapRow> rows)
 	{
 		int max = rows.SelectMany(row => row.Cells).Select(cell => cell.Value).DefaultIfEmpty(0).Max();
 		HeatmapRow[] mappedRows = [.. rows
@@ -224,17 +396,35 @@ internal static class MealAnalyticsBuilder
 					return cell with { Bucket = bucket };
 				})]))];
 
-		return new Heatmap(title, columns, mappedRows);
+		return new Heatmap(title, rowHeader, columns, mappedRows);
 	}
 
-	private static string GetPriceBand(decimal price)
+	private static string GetPriceBand(decimal price) => price switch
 	{
-		return price switch
-		{
-			< 10m => "Under $10",
-			< 15m => "$10-$14.99",
-			< 20m => "$15-$19.99",
-			_ => "$20+"
-		};
-	}
+		< 10m => "Under $10",
+		< 15m => "$10-$14.99",
+		< 20m => "$15-$19.99",
+		_ => "$20+"
+	};
+
+	private static string FormatMealType(MealType mealType) => mealType switch
+	{
+		MealType.Unknown => "Unknown",
+		_ => mealType.ToString()
+	};
+
+	private static string FormatWeekday(DayOfWeek day) => day switch
+	{
+		DayOfWeek.Monday => "Mon",
+		DayOfWeek.Tuesday => "Tue",
+		DayOfWeek.Wednesday => "Wed",
+		DayOfWeek.Thursday => "Thu",
+		DayOfWeek.Friday => "Fri",
+		DayOfWeek.Saturday => "Sat",
+		DayOfWeek.Sunday => "Sun",
+		_ => day.ToString()
+	};
+
+	private static string ToTitleCase(string value) =>
+		CultureInfo.InvariantCulture.TextInfo.ToTitleCase(value.ToLowerInvariant());
 }

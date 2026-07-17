@@ -66,6 +66,7 @@ export interface HeatmapRow {
 
 export interface Heatmap {
 	title: string;
+	rowHeader: string;
 	columns: string[];
 	rows: HeatmapRow[];
 }
@@ -78,9 +79,10 @@ export interface Prediction {
 
 export interface UnannouncedMealPrediction {
 	name: string;
-	category: CateringCategory;
+	station: DiningStation;
+	mealType: MealType;
+	category: string;
 	rationale: string;
-	predictedPrice: number;
 	confidence: number;
 	keywords: string[];
 }
