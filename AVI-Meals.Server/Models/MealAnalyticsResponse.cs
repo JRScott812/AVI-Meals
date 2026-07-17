@@ -21,16 +21,21 @@ public sealed record MealSummary(
 	decimal LowestPrice,
 	decimal HighestPrice,
 	decimal AveragePrice,
-	IReadOnlyList<string> CategoryNames);
+	IReadOnlyList<CateringCategory> Categories);
 
 public sealed record MealItem(
-	string Category,
+	CateringCategory Category,
 	string Name,
 	string Description,
 	decimal Price,
-	string PriceLabel,
-	string ProductUrl,
-	IReadOnlyList<string> Keywords);
+	string ProductUrl)
+{
+	/// <summary>
+	/// Keywords derived from <see cref="Name"/> and <see cref="Description"/>.
+	/// </summary>
+	[JsonInclude]
+	public IReadOnlyList<string> Keywords => MealKeywords.Extract(Name, Description);
+}
 
 public sealed record Heatmap(
 	string Title,
@@ -53,7 +58,7 @@ public sealed record Prediction(
 
 public sealed record UnannouncedMealPrediction(
 	string Name,
-	string Category,
+	CateringCategory Category,
 	string Rationale,
 	decimal PredictedPrice,
 	decimal Confidence,
@@ -65,7 +70,8 @@ public sealed record DailyMenu(
 
 public sealed record DailyMenuItem(
 	string MealName,
-	string Station,
+	DiningStation Station,
+	MealType MealType,
 	string Category,
 	decimal? Price,
 	IReadOnlyList<string> Tags);

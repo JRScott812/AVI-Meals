@@ -91,18 +91,18 @@ public sealed class MealAnalyticsService(
 			throw new InvalidOperationException("No meals were found in the public menu.");
 		}
 
-		(int LocationId, IReadOnlyList<int> MealIds)? dishContext = await dishMenuClient
-			.ResolveLocationAndMealIdsAsync(dishUrl, cancellationToken)
+		(int LocationId, IReadOnlyList<DishMenuClient.DishMealPeriod> MealPeriods)? dishContext = await dishMenuClient
+			.ResolveLocationAndMealPeriodsAsync(dishUrl, cancellationToken)
 			.ConfigureAwait(false);
 		int? locationId = dishContext?.LocationId;
-		IReadOnlyList<int>? mealIds = dishContext?.MealIds;
+		IReadOnlyList<DishMenuClient.DishMealPeriod>? mealPeriods = dishContext?.MealPeriods;
 
 		try
 		{
 			await historyStore.EnsureBackfillAsync(
-				(anchor, token) => locationId is null || mealIds is null || mealIds.Count == 0
+				(anchor, token) => locationId is null || mealPeriods is null || mealPeriods.Count == 0
 					? Task.FromResult<IReadOnlyList<DailyMenu>>([])
-					: dishMenuClient.BuildDailyMenusForDateAsync(anchor, locationId.Value, mealIds, token),
+					: dishMenuClient.BuildDailyMenusForDateAsync(anchor, locationId.Value, mealPeriods, token),
 				locationId,
 				cancellationToken,
 				force: forceHistoryBackfill,
@@ -143,7 +143,7 @@ public sealed class MealAnalyticsService(
 		}
 
 		MealItem[] orderedMeals = [.. meals
-			.OrderBy(meal => meal.Category, StringComparer.OrdinalIgnoreCase)
+			.OrderBy(meal => meal.Category)
 			.ThenBy(meal => meal.Name, StringComparer.OrdinalIgnoreCase)];
 
 		return new MealAnalyticsResponse(

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChipSeries } from '../common/ChipSeries';
 import type { MealAnalyticsResponse } from '../../types';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatEnumLabel } from '../../utils/format';
 
 type DailyMenusSectionProps = {
 	analytics: MealAnalyticsResponse;
@@ -61,6 +61,7 @@ export function DailyMenusSection({ analytics }: DailyMenusSectionProps) {
 											<tr>
 												<th scope="col">Meal</th>
 												<th scope="col">Station</th>
+												<th scope="col">Meal type</th>
 												<th scope="col">Category</th>
 												<th scope="col">Price</th>
 												<th scope="col">Tags</th>
@@ -68,9 +69,10 @@ export function DailyMenusSection({ analytics }: DailyMenusSectionProps) {
 										</thead>
 										<tbody>
 											{(day.items ?? []).map((item, index) => (
-												<tr key={`${day.date}-${item.mealName}-${index}`}>
+												<tr key={`${day.date}-${item.mealName}-${item.station}-${item.mealType}-${index}`}>
 													<td>{item.mealName}</td>
-													<td>{item.station}</td>
+													<td>{formatEnumLabel(item.station)}</td>
+													<td>{formatEnumLabel(item.mealType)}</td>
 													<td>{item.category}</td>
 													<td>{item.price === undefined ? '—' : formatCurrency(item.price)}</td>
 													<td><ChipSeries items={item.tags.length === 0 ? ['none'] : item.tags} /></td>

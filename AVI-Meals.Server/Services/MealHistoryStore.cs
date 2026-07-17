@@ -66,7 +66,8 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 				existingDay.Items.Add(new MenuItemEntity
 				{
 					MealName = item.MealName,
-					Station = item.Station,
+					Station = item.Station.ToString(),
+					MealType = item.MealType.ToString(),
 					Category = item.Category,
 					Price = item.Price,
 					TagsJson = JsonSerializer.Serialize(item.Tags, JsonOptions)
@@ -106,24 +107,20 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 			{
 				db.CatalogMeals.Add(new CatalogMealEntity
 				{
-					Category = meal.Category,
+					Category = meal.Category.ToString(),
 					Name = meal.Name,
 					Description = meal.Description,
 					Price = meal.Price,
-					PriceLabel = meal.PriceLabel,
 					ProductUrl = meal.ProductUrl,
-					KeywordsJson = JsonSerializer.Serialize(meal.Keywords, JsonOptions),
 					UpdatedAtUtc = now
 				});
 				continue;
 			}
 
-			existing.Category = meal.Category;
+			existing.Category = meal.Category.ToString();
 			existing.Name = meal.Name;
 			existing.Description = meal.Description;
 			existing.Price = meal.Price;
-			existing.PriceLabel = meal.PriceLabel;
-			existing.KeywordsJson = JsonSerializer.Serialize(meal.Keywords, JsonOptions);
 			existing.UpdatedAtUtc = now;
 		}
 
@@ -180,10 +177,12 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 			day.Date,
 			[.. day.Items
 				.OrderBy(item => item.Station, StringComparer.OrdinalIgnoreCase)
+				.ThenBy(item => item.MealType, StringComparer.OrdinalIgnoreCase)
 				.ThenBy(item => item.MealName, StringComparer.OrdinalIgnoreCase)
 				.Select(item => new DailyMenuItem(
 					item.MealName,
-					item.Station,
+					ParseStoredStation(item.Station),
+					ParseStoredMealType(item.MealType, item.Station),
 					item.Category,
 					item.Price,
 					DeserializeStringList(item.TagsJson)))]))];
@@ -300,6 +299,22 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 		}
 
 		return [.. byDate.Values.OrderBy(day => day.Date)];
+	}
+
+	private static DiningStation ParseStoredStation(string value) =>
+		Enum.TryParse(value, ignoreCase: true, out DiningStation station)
+			? station
+			: MealTaxonomy.ParseStation(value);
+
+	private static MealType ParseStoredMealType(string mealTypeValue, string stationValue)
+	{
+		if (Enum.TryParse(mealTypeValue, ignoreCase: true, out MealType mealType)
+			&& mealType != MealType.Unknown)
+		{
+			return mealType;
+		}
+
+		return MealTaxonomy.ParseMealType(stationValue);
 	}
 
 	private static IReadOnlyList<string> DeserializeStringList(string json)

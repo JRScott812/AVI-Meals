@@ -24,10 +24,11 @@ public sealed class MealsDbContext(DbContextOptions<MealsDbContext> options) : D
 			entity.ToTable("menu_items");
 			entity.HasKey(item => item.Id);
 			entity.Property(item => item.MealName).HasMaxLength(512).IsRequired();
-			entity.Property(item => item.Station).HasMaxLength(256).IsRequired();
+			entity.Property(item => item.Station).HasMaxLength(64).IsRequired();
+			entity.Property(item => item.MealType).HasMaxLength(32).IsRequired();
 			entity.Property(item => item.Category).HasMaxLength(256).IsRequired();
 			entity.Property(item => item.TagsJson).IsRequired();
-			entity.HasIndex(item => new { item.MenuDayId, item.MealName, item.Station }).IsUnique();
+			entity.HasIndex(item => new { item.MenuDayId, item.MealName, item.Station, item.MealType }).IsUnique();
 			entity.HasOne(item => item.MenuDay)
 				.WithMany(day => day.Items)
 				.HasForeignKey(item => item.MenuDayId)
@@ -38,10 +39,9 @@ public sealed class MealsDbContext(DbContextOptions<MealsDbContext> options) : D
 		{
 			entity.ToTable("catalog_meals");
 			entity.HasKey(meal => meal.Id);
-			entity.Property(meal => meal.Category).HasMaxLength(256).IsRequired();
+			entity.Property(meal => meal.Category).HasMaxLength(64).IsRequired();
 			entity.Property(meal => meal.Name).HasMaxLength(512).IsRequired();
 			entity.Property(meal => meal.ProductUrl).HasMaxLength(2048).IsRequired();
-			entity.Property(meal => meal.KeywordsJson).IsRequired();
 			entity.HasIndex(meal => meal.ProductUrl).IsUnique();
 		});
 

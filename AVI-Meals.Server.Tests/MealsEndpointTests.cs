@@ -260,7 +260,9 @@ public sealed class MealsEndpointTests
 				var value when value.Contains("tayloru.catertrax.com/menugrid.asp?mode=aff", StringComparison.OrdinalIgnoreCase) => MenuHtml,
 				var value when value.Contains("menuGrid.asp?mode=p&cg=3&c=21", StringComparison.OrdinalIgnoreCase) => CategoryHtml,
 				var value when value.Contains("dish.avifoodsystems.com/api/client?clientName=taylor", StringComparison.OrdinalIgnoreCase) => DishClientJson,
-				var value when value.Contains("dish.avifoodsystems.com/api/menu-items/week", StringComparison.OrdinalIgnoreCase) => DishWeeklyMenuJson,
+				var value when value.Contains("dish.avifoodsystems.com/api/menu-items/week", StringComparison.OrdinalIgnoreCase)
+					&& value.Contains("mealId=514", StringComparison.OrdinalIgnoreCase) => DishWeeklyMenuJson,
+				var value when value.Contains("dish.avifoodsystems.com/api/menu-items/week", StringComparison.OrdinalIgnoreCase) => "[]",
 				_ => "<html><body>Not Found</body></html>"
 			};
 

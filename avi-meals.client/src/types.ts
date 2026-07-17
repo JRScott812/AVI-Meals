@@ -1,18 +1,54 @@
+export type MealType = 'Unknown' | 'Breakfast' | 'Brunch' | 'Lunch' | 'Dinner';
+
+export type DiningStation =
+	| 'Other'
+	| 'General'
+	| 'MainLine'
+	| 'NutriBar'
+	| 'Trattoria'
+	| 'Clarity'
+	| 'Homestyle'
+	| 'Homestead'
+	| 'Pastas'
+	| 'Grill'
+	| 'GrillAndSpecials'
+	| 'GrillTakeOver'
+	| 'Deli'
+	| 'DeliAndFeatures'
+	| 'Soups'
+	| 'YogurtBar'
+	| 'Roots'
+	| 'TopAndToast'
+	| 'HotCereals'
+	| 'HotBreakfastSpecials'
+	| 'Carvery'
+	| 'Tailgate'
+	| 'FoodTruck'
+	| 'TakeOverTopping'
+	| 'Grill1846';
+
+export type CateringCategory =
+	| 'Other'
+	| 'AppetizerDisplays'
+	| 'BoxedLunch'
+	| 'Breakfast'
+	| 'HotBuffets'
+	| 'SandwichAndSaladBuffets';
+
 export interface MealSummary {
 	mealCount: number;
 	categoryCount: number;
 	lowestPrice: number;
 	highestPrice: number;
 	averagePrice: number;
-	categoryNames: string[];
+	categories: CateringCategory[];
 }
 
 export interface MealItem {
-	category: string;
+	category: CateringCategory;
 	name: string;
 	description: string;
 	price: number;
-	priceLabel: string;
 	productUrl: string;
 	keywords: string[];
 }
@@ -42,7 +78,7 @@ export interface Prediction {
 
 export interface UnannouncedMealPrediction {
 	name: string;
-	category: string;
+	category: CateringCategory;
 	rationale: string;
 	predictedPrice: number;
 	confidence: number;
@@ -51,7 +87,8 @@ export interface UnannouncedMealPrediction {
 
 export interface DailyMenuItem {
 	mealName: string;
-	station: string;
+	station: DiningStation;
+	mealType: MealType;
 	category: string;
 	price?: number;
 	tags: string[];

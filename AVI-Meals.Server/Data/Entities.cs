@@ -17,6 +17,7 @@ public sealed class MenuItemEntity
 	public MenuDayEntity MenuDay { get; set; } = null!;
 	public string MealName { get; set; } = string.Empty;
 	public string Station { get; set; } = string.Empty;
+	public string MealType { get; set; } = "Unknown";
 	public string Category { get; set; } = string.Empty;
 	public decimal? Price { get; set; }
 	public string TagsJson { get; set; } = "[]";
@@ -29,9 +30,7 @@ public sealed class CatalogMealEntity
 	public string Name { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public decimal Price { get; set; }
-	public string PriceLabel { get; set; } = string.Empty;
 	public string ProductUrl { get; set; } = string.Empty;
-	public string KeywordsJson { get; set; } = "[]";
 	public DateTimeOffset UpdatedAtUtc { get; set; }
 }
 

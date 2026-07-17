@@ -1,6 +1,6 @@
 import { ChipSeries } from '../common/ChipSeries';
 import type { MealAnalyticsResponse } from '../../types';
-import { formatConfidence, formatCurrency } from '../../utils/format';
+import { formatConfidence, formatCurrency, formatEnumLabel } from '../../utils/format';
 
 type PredictionsSectionProps = {
 	analytics: MealAnalyticsResponse;
@@ -50,7 +50,7 @@ export function PredictionsSection({ analytics }: PredictionsSectionProps) {
 								{analytics.unannouncedMealPredictions.map(prediction => (
 									<tr key={prediction.name}>
 										<td>{prediction.name}</td>
-										<td>{prediction.category}</td>
+										<td>{formatEnumLabel(prediction.category)}</td>
 										<td>{formatCurrency(prediction.predictedPrice)}</td>
 										<td>{formatConfidence(prediction.confidence)}</td>
 										<td><ChipSeries items={prediction.keywords} /></td>

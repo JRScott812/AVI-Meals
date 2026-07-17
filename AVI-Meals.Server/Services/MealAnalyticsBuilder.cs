@@ -33,10 +33,10 @@ internal static class MealAnalyticsBuilder
 
 	public static MealSummary BuildSummary(IReadOnlyList<MealItem> meals)
 	{
-		string[] categories = [.. meals
+		CateringCategory[] categories = [.. meals
 			.Select(meal => meal.Category)
-			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)];
+			.Distinct()
+			.OrderBy(category => category)];
 
 		return new MealSummary(
 			meals.Count,
@@ -49,18 +49,18 @@ internal static class MealAnalyticsBuilder
 
 	public static IReadOnlyList<Heatmap> BuildHeatmaps(IReadOnlyList<MealItem> meals)
 	{
-		string[] categoryNames = [.. meals
+		CateringCategory[] categories = [.. meals
 			.Select(meal => meal.Category)
-			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)];
+			.Distinct()
+			.OrderBy(category => category)];
 
 		string[] priceBands = ["Under $10", "$10-$14.99", "$15-$19.99", "$20+"];
-		HeatmapRow[] categoryByPriceRows = [.. categoryNames
+		HeatmapRow[] categoryByPriceRows = [.. categories
 			.Select(category => new HeatmapRow(
-				category,
+				MealTaxonomy.FormatCateringCategory(category),
 				[.. priceBands.Select(band => new HeatmapCell(
 					band,
-					meals.Count(meal => string.Equals(meal.Category, category, StringComparison.OrdinalIgnoreCase) && GetPriceBand(meal.Price) == band),
+					meals.Count(meal => meal.Category == category && GetPriceBand(meal.Price) == band),
 					0))]))];
 
 		string[] topKeywords = [.. meals
@@ -71,12 +71,13 @@ internal static class MealAnalyticsBuilder
 			.Take(6)
 			.Select(group => group.Key)];
 
-		HeatmapRow[] categoryByKeywordRows = [.. categoryNames
+		HeatmapRow[] categoryByKeywordRows = [.. categories
 			.Select(category => new HeatmapRow(
-				category,
+				MealTaxonomy.FormatCateringCategory(category),
 				[.. topKeywords.Select(keyword => new HeatmapCell(
 					keyword,
-					meals.Count(meal => string.Equals(meal.Category, category, StringComparison.OrdinalIgnoreCase) && meal.Keywords.Contains(keyword, StringComparer.OrdinalIgnoreCase)),
+					meals.Count(meal => meal.Category == category
+						&& meal.Keywords.Contains(keyword, StringComparer.OrdinalIgnoreCase)),
 					0))]))];
 
 		return
@@ -88,10 +89,10 @@ internal static class MealAnalyticsBuilder
 
 	public static IReadOnlyList<Prediction> BuildPredictions(IReadOnlyList<MealItem> meals)
 	{
-		IGrouping<string, MealItem> dominantCategory = meals
-			.GroupBy(meal => meal.Category, StringComparer.OrdinalIgnoreCase)
+		IGrouping<CateringCategory, MealItem> dominantCategory = meals
+			.GroupBy(meal => meal.Category)
 			.OrderByDescending(group => group.Count())
-			.ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+			.ThenBy(group => group.Key)
 			.First();
 
 		IGrouping<string, MealItem> dominantBand = meals
@@ -110,12 +111,13 @@ internal static class MealAnalyticsBuilder
 
 		decimal confidence = decimal.Round(dominantCategory.Count() / (decimal)meals.Count, 2);
 		decimal priceConfidence = decimal.Round(dominantBand.Count() / (decimal)meals.Count, 2);
+		string categoryLabel = MealTaxonomy.FormatCateringCategory(dominantCategory.Key);
 
 		return
 		[
 			new Prediction(
 				"Most likely menu focus",
-				$"{dominantCategory.Key} has the deepest lineup with {dominantCategory.Count()} meals, so similar menus are most likely to emphasize that category.",
+				$"{categoryLabel} has the deepest lineup with {dominantCategory.Count()} meals, so similar menus are most likely to emphasize that category.",
 				confidence),
 			new Prediction(
 				"Most likely price range",
@@ -130,10 +132,10 @@ internal static class MealAnalyticsBuilder
 
 	public static IReadOnlyList<UnannouncedMealPrediction> BuildUnannouncedMealPredictions(IReadOnlyList<MealItem> meals)
 	{
-		string[] dominantCategories = [.. meals
-			.GroupBy(meal => meal.Category, StringComparer.OrdinalIgnoreCase)
+		CateringCategory[] dominantCategories = [.. meals
+			.GroupBy(meal => meal.Category)
 			.OrderByDescending(group => group.Count())
-			.ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+			.ThenBy(group => group.Key)
 			.Take(3)
 			.Select(group => group.Key)];
 
@@ -142,12 +144,11 @@ internal static class MealAnalyticsBuilder
 			return [];
 		}
 
-		Dictionary<string, decimal> categoryAveragePrices = meals
-			.GroupBy(meal => meal.Category, StringComparer.OrdinalIgnoreCase)
+		Dictionary<CateringCategory, decimal> categoryAveragePrices = meals
+			.GroupBy(meal => meal.Category)
 			.ToDictionary(
 				group => group.Key,
-				group => decimal.Round(group.Average(meal => meal.Price), 2),
-				StringComparer.OrdinalIgnoreCase);
+				group => decimal.Round(group.Average(meal => meal.Price), 2));
 
 		string[] topKeywords = [.. meals
 			.SelectMany(meal => meal.Keywords)
@@ -166,7 +167,7 @@ internal static class MealAnalyticsBuilder
 
 		for (int index = 0; index < dominantCategories.Length; index++)
 		{
-			string category = dominantCategories[index];
+			CateringCategory category = dominantCategories[index];
 			string protein = ProteinTerms[index % ProteinTerms.Length];
 			string style = StyleTerms[(index + 2) % StyleTerms.Length];
 			string flavor = FlavorTerms[(index + 4) % FlavorTerms.Length];

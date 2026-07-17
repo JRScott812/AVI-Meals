@@ -1,7 +1,7 @@
 import { ChipSeries } from '../common/ChipSeries';
 import { ExternalLink } from '../common/ExternalLink';
 import type { MealAnalyticsResponse } from '../../types';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatEnumLabel } from '../../utils/format';
 
 type MealsSectionProps = {
 	analytics: MealAnalyticsResponse;
@@ -35,9 +35,9 @@ export function MealsSection({ analytics }: MealsSectionProps) {
 					<tbody>
 						{analytics.meals.map(meal => (
 							<tr key={`${meal.category}-${meal.name}`}>
-								<td>{meal.category}</td>
+								<td>{formatEnumLabel(meal.category)}</td>
 								<td>{meal.name}</td>
-								<td>{meal.priceLabel || formatCurrency(meal.price)}</td>
+								<td>{formatCurrency(meal.price)}</td>
 								<td>{meal.description}</td>
 								<td><ChipSeries items={meal.keywords} /></td>
 								<td><ExternalLink href={meal.productUrl} label="Open" /></td>

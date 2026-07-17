@@ -27,22 +27,22 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 		}
 
 		DateOnly anchorDate = routeContext.Date ?? DateOnly.FromDateTime(DateTime.UtcNow);
-		IReadOnlyList<int> mealIds = ResolveMealIds(routeContext.MealId, clientContext.MealIds);
-		return await BuildDailyMenusForDateAsync(anchorDate, clientContext.LocationId, mealIds, cancellationToken)
+		IReadOnlyList<DishMealPeriod> mealPeriods = ResolveMealPeriods(routeContext.MealId, clientContext.MealPeriods);
+		return await BuildDailyMenusForDateAsync(anchorDate, clientContext.LocationId, mealPeriods, cancellationToken)
 			.ConfigureAwait(false);
 	}
 
 	/// <summary>
-	/// Loads one Dish menu week for an explicit anchor date and location.
+	/// Loads one Dish menu week for an explicit anchor date, location, and meal periods.
 	/// </summary>
 	public async Task<IReadOnlyList<DailyMenu>> BuildDailyMenusForDateAsync(
 		DateOnly anchorDate,
 		int locationId,
-		IReadOnlyList<int>? mealIds,
+		IReadOnlyList<DishMealPeriod>? mealPeriods,
 		CancellationToken cancellationToken)
 	{
-		IReadOnlyList<int> ids = mealIds is { Count: > 0 } ? mealIds : [];
-		if (ids.Count == 0)
+		IReadOnlyList<DishMealPeriod> periods = mealPeriods is { Count: > 0 } ? mealPeriods : [];
+		if (periods.Count == 0)
 		{
 			return [];
 		}
@@ -50,23 +50,29 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 		string dateParameter = anchorDate.ToString("M/d/yyyy", CultureInfo.InvariantCulture);
 
 		List<DishMenuItemRaw> weeklyItems = [];
-		foreach (int mealId in ids)
+		foreach (DishMealPeriod period in periods)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			string endpoint = string.Format(CultureInfo.InvariantCulture, DishMenuWeekUrlFormat, dateParameter, locationId, mealId);
+			string endpoint = string.Format(
+				CultureInfo.InvariantCulture,
+				DishMenuWeekUrlFormat,
+				dateParameter,
+				locationId,
+				period.Id);
 			string? payload = await http.TryGetJsonAsync(endpoint, cancellationToken).ConfigureAwait(false);
 			if (string.IsNullOrWhiteSpace(payload))
 			{
 				continue;
 			}
 
-			weeklyItems.AddRange(ParseDishMenuItems(payload));
+			weeklyItems.AddRange(ParseDishMenuItems(payload, period.MealType));
 		}
 
 		return weeklyItems.Count == 0
 			? []
 			: [.. weeklyItems
-			.GroupBy(item => (item.Date, MealName: item.MealName.Trim(), Station: item.Station.Trim()),
+			.GroupBy(
+				item => (item.Date, MealName: item.MealName.Trim(), item.Station, item.MealType),
 				new DishItemKeyComparer())
 			.Select(group => group.First())
 			.GroupBy(item => item.Date)
@@ -74,24 +80,23 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 			.Select(group => new DailyMenu(
 				group.Key,
 				[.. group
-					.OrderBy(item => item.Station, StringComparer.OrdinalIgnoreCase)
+					.OrderBy(item => item.Station)
+					.ThenBy(item => item.MealType)
 					.ThenBy(item => item.MealName, StringComparer.OrdinalIgnoreCase)
-					.Select(item => new DailyMenuItem(item.MealName, item.Station, item.Category, item.Price, item.Tags))
+					.Select(item => new DailyMenuItem(
+						item.MealName,
+						item.Station,
+						item.MealType,
+						item.Category,
+						item.Price,
+						item.Tags))
 				]))];
-	}
-
-	public async Task<int?> ResolveLocationIdAsync(string dishUrl, CancellationToken cancellationToken)
-	{
-		DishRouteContext routeContext = ParseDishRouteContext(dishUrl);
-		DishClientContext? clientContext = await ResolveClientContextAsync(routeContext, cancellationToken)
-			.ConfigureAwait(false);
-		return clientContext?.LocationId;
 	}
 
 	/// <summary>
 	/// Resolves Taylor Dish location and meal-period IDs used by the week menu API.
 	/// </summary>
-	public async Task<(int LocationId, IReadOnlyList<int> MealIds)?> ResolveLocationAndMealIdsAsync(
+	public async Task<(int LocationId, IReadOnlyList<DishMealPeriod> MealPeriods)?> ResolveLocationAndMealPeriodsAsync(
 		string dishUrl,
 		CancellationToken cancellationToken)
 	{
@@ -100,8 +105,10 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 			.ConfigureAwait(false);
 		return clientContext is null
 			? null
-			: (clientContext.LocationId, clientContext.MealIds);
+			: (clientContext.LocationId, clientContext.MealPeriods);
 	}
+
+	public sealed record DishMealPeriod(int Id, MealType MealType);
 
 	private async Task<DishClientContext?> ResolveClientContextAsync(
 		DishRouteContext routeContext,
@@ -153,22 +160,28 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 		selected ??= locations.FirstOrDefault(location => location.IsEnabled);
 		selected ??= locations[0];
 
-		if (selected.MealIds.Count == 0)
+		if (selected.MealPeriods.Count == 0)
 		{
 			return null;
 		}
 
-		return new DishClientContext(selected.Id, selected.MealIds);
+		return new DishClientContext(selected.Id, selected.MealPeriods);
 	}
 
-	private static IReadOnlyList<int> ResolveMealIds(int? routeMealId, IReadOnlyList<int> locationMealIds)
+	private static IReadOnlyList<DishMealPeriod> ResolveMealPeriods(
+		int? routeMealId,
+		IReadOnlyList<DishMealPeriod> locationMealPeriods)
 	{
-		if (routeMealId is int mealId && locationMealIds.Contains(mealId))
+		if (routeMealId is int mealId)
 		{
-			return [mealId];
+			DishMealPeriod? match = locationMealPeriods.FirstOrDefault(period => period.Id == mealId);
+			if (match is not null)
+			{
+				return [match];
+			}
 		}
 
-		return locationMealIds;
+		return locationMealPeriods;
 	}
 
 	private static DishRouteContext ParseDishRouteContext(string dishUrl)
@@ -226,26 +239,32 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 		bool isEnabled = !location.TryGetProperty("isEnabled", out JsonElement enabledElement)
 			|| enabledElement.ValueKind != JsonValueKind.False;
 
-		List<int> mealIds = [];
+		List<DishMealPeriod> mealPeriods = [];
 		if (location.TryGetProperty("meals", out JsonElement mealsElement)
 			&& mealsElement.ValueKind == JsonValueKind.Array)
 		{
 			foreach (JsonElement meal in mealsElement.EnumerateArray())
 			{
-				if (meal.TryGetProperty("id", out JsonElement mealIdElement)
-					&& mealIdElement.ValueKind == JsonValueKind.Number
-					&& mealIdElement.TryGetInt32(out int mealId))
+				if (!meal.TryGetProperty("id", out JsonElement mealIdElement)
+					|| mealIdElement.ValueKind != JsonValueKind.Number
+					|| !mealIdElement.TryGetInt32(out int mealId))
 				{
-					mealIds.Add(mealId);
+					continue;
 				}
+
+				string mealName = meal.TryGetProperty("name", out JsonElement mealNameElement)
+					&& mealNameElement.ValueKind == JsonValueKind.String
+					? mealNameElement.GetString() ?? string.Empty
+					: string.Empty;
+				mealPeriods.Add(new DishMealPeriod(mealId, MealTaxonomy.ParseMealType(mealName)));
 			}
 		}
 
-		parsed = new DishLocationRaw(locationId, name, isEnabled, mealIds);
+		parsed = new DishLocationRaw(locationId, name, isEnabled, mealPeriods);
 		return true;
 	}
 
-	private static IReadOnlyList<DishMenuItemRaw> ParseDishMenuItems(string payload)
+	private static IReadOnlyList<DishMenuItemRaw> ParseDishMenuItems(string payload, MealType mealPeriodType)
 	{
 		using JsonDocument document = JsonDocument.Parse(payload);
 		if (document.RootElement.ValueKind != JsonValueKind.Array)
@@ -256,7 +275,7 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 		List<DishMenuItemRaw> items = [];
 		foreach (JsonElement element in document.RootElement.EnumerateArray())
 		{
-			if (!TryParseDishMenuItem(element, out DishMenuItemRaw? item) || item is null)
+			if (!TryParseDishMenuItem(element, mealPeriodType, out DishMenuItemRaw? item) || item is null)
 			{
 				continue;
 			}
@@ -267,7 +286,10 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 		return items;
 	}
 
-	private static bool TryParseDishMenuItem(JsonElement element, out DishMenuItemRaw? item)
+	private static bool TryParseDishMenuItem(
+		JsonElement element,
+		MealType mealPeriodType,
+		out DishMenuItemRaw? item)
 	{
 		item = null;
 
@@ -278,11 +300,15 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 			return false;
 		}
 
-		string station = TryGetPropertyString(element, "stationName", out string stationName)
+		string rawStation = TryGetPropertyString(element, "stationName", out string stationName)
 			? stationName
 			: "General";
+		DiningStation station = MealTaxonomy.ParseStation(rawStation);
+		MealType mealType = mealPeriodType != MealType.Unknown
+			? mealPeriodType
+			: MealTaxonomy.ParseMealType(rawStation);
 		string category = TryGetPropertyString(element, "categoryName", out string categoryName)
-			? categoryName
+			? categoryName.Trim()
 			: "Uncategorized";
 		decimal? price = TryGetPropertyDecimal(element, "price", out decimal parsedPrice)
 			? parsedPrice
@@ -317,6 +343,7 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 			date,
 			mealName,
 			station,
+			mealType,
 			category,
 			price,
 			[.. tags.Distinct(StringComparer.OrdinalIgnoreCase)]);
@@ -400,29 +427,39 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 		public static DishRouteContext Empty { get; } = new(DefaultClientName, null, null, null);
 	}
 
-	private sealed record DishClientContext(int LocationId, IReadOnlyList<int> MealIds);
+	private sealed record DishClientContext(int LocationId, IReadOnlyList<DishMealPeriod> MealPeriods);
 
-	private sealed record DishLocationRaw(int Id, string Name, bool IsEnabled, IReadOnlyList<int> MealIds);
+	private sealed record DishLocationRaw(
+		int Id,
+		string Name,
+		bool IsEnabled,
+		IReadOnlyList<DishMealPeriod> MealPeriods);
 
 	private sealed record DishMenuItemRaw(
 		DateOnly Date,
 		string MealName,
-		string Station,
+		DiningStation Station,
+		MealType MealType,
 		string Category,
 		decimal? Price,
 		IReadOnlyList<string> Tags);
 
-	private sealed class DishItemKeyComparer : IEqualityComparer<(DateOnly Date, string MealName, string Station)>
+	private sealed class DishItemKeyComparer
+		: IEqualityComparer<(DateOnly Date, string MealName, DiningStation Station, MealType MealType)>
 	{
-		public bool Equals((DateOnly Date, string MealName, string Station) x, (DateOnly Date, string MealName, string Station) y) =>
+		public bool Equals(
+			(DateOnly Date, string MealName, DiningStation Station, MealType MealType) x,
+			(DateOnly Date, string MealName, DiningStation Station, MealType MealType) y) =>
 			x.Date == y.Date
-			&& string.Equals(x.MealName, y.MealName, StringComparison.OrdinalIgnoreCase)
-			&& string.Equals(x.Station, y.Station, StringComparison.OrdinalIgnoreCase);
+			&& x.Station == y.Station
+			&& x.MealType == y.MealType
+			&& string.Equals(x.MealName, y.MealName, StringComparison.OrdinalIgnoreCase);
 
-		public int GetHashCode((DateOnly Date, string MealName, string Station) obj) =>
+		public int GetHashCode((DateOnly Date, string MealName, DiningStation Station, MealType MealType) obj) =>
 			HashCode.Combine(
 				obj.Date,
 				StringComparer.OrdinalIgnoreCase.GetHashCode(obj.MealName),
-				StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Station));
+				obj.Station,
+				obj.MealType);
 	}
 }

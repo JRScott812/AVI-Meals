@@ -13,7 +13,7 @@ const mockAnalyticsResponse = {
 		lowestPrice: 8.99,
 		highestPrice: 10.99,
 		averagePrice: 9.99,
-		categoryNames: ['Breakfast']
+		categories: ['Breakfast']
 	},
 	meals: [
 		{
@@ -21,7 +21,6 @@ const mockAnalyticsResponse = {
 			name: 'Continental Breakfast Buffet',
 			description: 'Fruit and pastries.',
 			price: 8.99,
-			priceLabel: '$8.99',
 			productUrl: 'https://example.com/1',
 			keywords: ['fruit', 'pastries']
 		}
@@ -63,8 +62,9 @@ const mockAnalyticsResponse = {
 			items: [
 				{
 					mealName: 'Monday Veggie Bowl',
-					station: 'Main Line',
-					category: 'Lunch',
+					station: 'MainLine',
+					mealType: 'Lunch',
+					category: 'Pizza & Pasta',
 					price: 10.25,
 					tags: ['vegan', 'contains soy']
 				}

@@ -84,31 +84,12 @@ internal static partial class CaterTraxMenuScraper
 			}
 
 			yield return new MealItem(
-				categoryName,
+				MealTaxonomy.ParseCateringCategory(categoryName),
 				name,
 				description,
 				price,
-				priceText,
-				productUrl,
-				ExtractKeywords(name, description));
+				productUrl);
 		}
-	}
-
-	private static IReadOnlyList<string> ExtractKeywords(string name, string description)
-	{
-		HashSet<string> stopWords = new(StringComparer.OrdinalIgnoreCase)
-		{
-			"and", "the", "with", "for", "your", "our", "fresh", "includes", "include", "served", "service",
-			"buffet", "box", "boxed", "person", "meal", "meals", "assorted", "choice", "selection", "style",
-			"house", "made", "day", "available", "option", "options", "add", "ice", "water", "tea", "coffee"
-		};
-
-		return [.. WordRegex()
-			.Matches($"{name} {description}")
-			.Select(match => match.Value.Trim().ToLowerInvariant())
-			.Where(word => word.Length > 3 && !stopWords.Contains(word))
-			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.Take(8)];
 	}
 
 	private static bool TryParsePrice(string priceText, out decimal price)
@@ -153,9 +134,6 @@ internal static partial class CaterTraxMenuScraper
 
 	[GeneratedRegex("<div class='product-slot'>\\s*<a class='product-tile' href=\"(?<href>[^\"]+)\">.*?<div class='tile-title'>(?<name>.*?)</div>.*?<div class='tile-description'>(?<description>.*?)</div>.*?<div class='cost'>(?<price>.*?)</div>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
 	private static partial Regex ProductRegex();
-
-	[GeneratedRegex("[A-Za-z][A-Za-z'`-]+", RegexOptions.CultureInvariant)]
-	private static partial Regex WordRegex();
 
 	[GeneratedRegex("<[^>]+>", RegexOptions.Singleline)]
 	private static partial Regex HtmlTagRegex();
