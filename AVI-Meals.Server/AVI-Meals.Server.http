@@ -1,6 +1,11 @@
 @AVI_Meals.Server_HostAddress = http://localhost:5076
 
-GET {{AVI_Meals.Server_HostAddress}}/weatherforecast/
+GET {{AVI_Meals.Server_HostAddress}}/api/meals
+Accept: application/json
+
+###
+
+GET {{AVI_Meals.Server_HostAddress}}/health
 Accept: application/json
 
 ###

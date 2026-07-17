@@ -44,8 +44,7 @@ public sealed record HeatmapRow(
 public sealed record HeatmapCell(
 	string Label,
 	int Value,
-	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int Bucket,
-	string Shade);
+	[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int Bucket);
 
 public sealed record Prediction(
 	string Title,

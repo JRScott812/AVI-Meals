@@ -26,7 +26,9 @@ jobs:
           node-version: 22
 
       - name: Restore server
-        run: dotnet restore AVI-Meals.Server/AVI-Meals.Server.csproj
+        run: |
+          dotnet restore AVI-Meals.Server/AVI-Meals.Server.csproj
+          dotnet restore AVI-Meals.Server.Tests/AVI-Meals.Server.Tests.csproj
 
       - name: Install client dependencies
         working-directory: avi-meals.client
@@ -34,6 +36,9 @@ jobs:
 
       - name: Verify server formatting
         run: dotnet format AVI-Meals.Server/AVI-Meals.Server.csproj --no-restore --verify-no-changes --verbosity diagnostic
+        env:
+          CI: true
+          BuildingInsideDocker: true
 
       - name: Verify client formatting
         working-directory: avi-meals.client
@@ -46,9 +51,16 @@ jobs:
         working-directory: avi-meals.client
         run: npm run lint
 
-      - name: Build server
-        run: dotnet build AVI-Meals.Server/AVI-Meals.Server.csproj --configuration Release --no-restore
+      - name: Test server
+        run: dotnet test AVI-Meals.Server.Tests/AVI-Meals.Server.Tests.csproj --configuration Release --no-restore
+        env:
+          CI: true
+          BuildingInsideDocker: true
 
       - name: Build client
         working-directory: avi-meals.client
         run: npm run build
+
+      - name: Test client
+        working-directory: avi-meals.client
+        run: npm run test:run

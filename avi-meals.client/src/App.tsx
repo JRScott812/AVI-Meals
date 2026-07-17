@@ -8,11 +8,6 @@ import { PredictionsSection } from './components/sections/PredictionsSection';
 import { SummarySection } from './components/sections/SummarySection';
 import type { DashboardPage, DashboardPageOption, MealAnalyticsResponse } from './types';
 
-const currency = new Intl.NumberFormat('en-US', {
-	style: 'currency',
-	currency: 'USD',
-});
-
 const transientStatusCodes = new Set([502, 503, 504]);
 const maxStartupRetries = 6;
 const startupRetryDelayMs = 750;
@@ -53,8 +48,6 @@ function App() {
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [page, setPage] = useState<DashboardPage>('all');
-
-	const formatCurrency = (value: number): string => currency.format(value);
 
 	const loadAnalytics = useCallback(async (signal?: AbortSignal) => {
 		setIsLoading(true);
@@ -101,10 +94,10 @@ function App() {
 	const showPage = (target: DashboardPage): boolean => page === 'all' || page === target;
 
 	return (
-		<main className="app-shell">
+		<main className="app-shell" aria-busy={isLoading}>
 			<header className="hero">
 				<div className="brand-lockup">
-					<img src="/avi-taylor-mark.svg" alt="Taylor AVI mark" className="brand-mark" />
+					<img src={`${import.meta.env.BASE_URL}avi-taylor-mark.svg`} alt="Taylor AVI mark" className="brand-mark" />
 					<div>
 						<p className="brand-kicker">Taylor Dining by AVI Fresh</p>
 						<h1>AVI Meals</h1>
@@ -118,32 +111,43 @@ function App() {
 				</div>
 			</header>
 
-			<nav className="page-nav">
-				<p className="page-nav-label">Pages</p>
-				<div className="page-nav-buttons">
-					{pageOptions.map(option => (
-						<button
-							key={option.key}
-							type="button"
-							onClick={() => setPage(option.key)}
-							disabled={page === option.key}
-							className="button"
-						>
-							{option.label}
-						</button>
-					))}
+			<nav className="page-nav" aria-label="Dashboard pages">
+				<p className="page-nav-label" id="page-nav-label">Pages</p>
+				<div className="page-nav-buttons" role="group" aria-labelledby="page-nav-label">
+					{pageOptions.map(option => {
+						const isCurrent = page === option.key;
+						return (
+							<button
+								key={option.key}
+								type="button"
+								onClick={() => setPage(option.key)}
+								aria-current={isCurrent ? 'page' : undefined}
+								className={isCurrent ? 'button button-active' : 'button'}
+							>
+								{option.label}
+							</button>
+						);
+					})}
 				</div>
 			</nav>
 
-			{error !== null && <p className="status-error">Unable to load meals: {error}</p>}
+			{error !== null && (
+				<p className="status-error" role="alert" aria-live="assertive">
+					Unable to load meals: {error}
+				</p>
+			)}
+
+			{isLoading && analytics === null && error === null && (
+				<p className="status-loading" aria-live="polite">Loading meal analytics…</p>
+			)}
 
 			{analytics !== null && (
 				<div className="content-stack">
-					{showPage('summary') && <SummarySection analytics={analytics} formatCurrency={formatCurrency} />}
-					{showPage('predictions') && <PredictionsSection analytics={analytics} formatCurrency={formatCurrency} />}
+					{showPage('summary') && <SummarySection analytics={analytics} />}
+					{showPage('predictions') && <PredictionsSection analytics={analytics} />}
 					{showPage('heatmaps') && <HeatmapsSection analytics={analytics} />}
-					{showPage('meals') && <MealsSection analytics={analytics} formatCurrency={formatCurrency} />}
-					{showPage('dailyMenus') && <DailyMenusSection analytics={analytics} formatCurrency={formatCurrency} />}
+					{showPage('meals') && <MealsSection analytics={analytics} />}
+					{showPage('dailyMenus') && <DailyMenusSection analytics={analytics} />}
 					{showPage('mealOccurrences') && <MealOccurrencesSection analytics={analytics} />}
 				</div>
 			)}

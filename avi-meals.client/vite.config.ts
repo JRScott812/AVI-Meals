@@ -1,6 +1,4 @@
 /// <reference types="vitest/config" />
-import { fileURLToPath, URL } from 'node:url';
-
 import { defineConfig } from 'vite';
 import plugin from '@vitejs/plugin-react';
 import fs from 'fs';
@@ -69,21 +67,12 @@ export default defineConfig(({ command }) => {
 	return {
 		base: getConfiguredBasePath(),
 		plugins: [plugin()],
-		resolve: {
-			alias: {
-				'@': fileURLToPath(new URL('./src', import.meta.url))
-			}
-		},
 		server: !isServeCommand ? undefined : {
 			// Bind to IPv4 loopback to avoid permission errors when IPv6 (::1) is restricted
 			host: '127.0.0.1',
 			// If the requested port is unavailable, allow Vite to try the next free port
 			strictPort: false,
 			proxy: {
-				'^/weatherforecast': {
-					target,
-					secure: false
-				},
 				'^/api': {
 					target,
 					secure: false

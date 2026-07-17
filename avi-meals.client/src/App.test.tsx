@@ -34,7 +34,7 @@ const mockAnalyticsResponse = {
 				{
 					label: 'Breakfast',
 					cells: [
-						{ label: 'Under $10', value: 1, bucket: 4, shade: '█' }
+						{ label: 'Under $10', value: 1, bucket: 4 }
 					]
 				}
 			]
@@ -123,8 +123,8 @@ describe('App', () => {
 		const mealsPageButton = within(pagesNav!).getByRole('button', { name: 'Meals' });
 		fireEvent.click(mealsPageButton);
 
-		expect(within(pagesNav!).getByRole('button', { name: 'Meals' })).toBeDisabled();
-		expect(within(pagesNav!).getByRole('button', { name: 'Summary' })).toBeEnabled();
+		expect(within(pagesNav!).getByRole('button', { name: 'Meals' })).toHaveAttribute('aria-current', 'page');
+		expect(within(pagesNav!).getByRole('button', { name: 'Summary' })).not.toHaveAttribute('aria-current');
 	});
 
 	it('shows an empty-state daily menus panel when the payload does not include dailyMenus', async () => {

@@ -1,25 +1,22 @@
 import { ChipSeries } from '../common/ChipSeries';
 import { ExternalLink } from '../common/ExternalLink';
 import type { MealAnalyticsResponse } from '../../types';
+import { formatCurrency } from '../../utils/format';
 
-/**
- * Props for `MealsSection`.
- */
 type MealsSectionProps = {
-	/**
-	 * Full analytics payload containing the current meal list.
-	 */
 	analytics: MealAnalyticsResponse;
-	/**
-	 * Shared currency formatter callback from the app shell.
-	 */
-	formatCurrency: (value: number) => string;
 };
 
-/**
- * Displays the raw meals table with category, pricing, keywords, and source links.
- */
-export function MealsSection({ analytics, formatCurrency }: MealsSectionProps) {
+export function MealsSection({ analytics }: MealsSectionProps) {
+	if (analytics.meals.length === 0) {
+		return (
+			<section className="panel">
+				<h2>Meals</h2>
+				<p>No meals are currently available from the public menu.</p>
+			</section>
+		);
+	}
+
 	return (
 		<section className="panel">
 			<h2>Meals</h2>
@@ -27,12 +24,12 @@ export function MealsSection({ analytics, formatCurrency }: MealsSectionProps) {
 				<table className="data-table">
 					<thead>
 						<tr>
-							<th>Category</th>
-							<th>Meal</th>
-							<th>Price</th>
-							<th>Description</th>
-							<th>Keywords</th>
-							<th>Link</th>
+							<th scope="col">Category</th>
+							<th scope="col">Meal</th>
+							<th scope="col">Price</th>
+							<th scope="col">Description</th>
+							<th scope="col">Keywords</th>
+							<th scope="col">Link</th>
 						</tr>
 					</thead>
 					<tbody>

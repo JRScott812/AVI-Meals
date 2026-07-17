@@ -1,12 +1,15 @@
 using System.Net;
 using System.Text;
+
 using AVI_Meals.Server.Services;
+
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+
 using Xunit;
 
 namespace AVI_Meals.Server.Tests;
@@ -24,7 +27,7 @@ public sealed class MealsEndpointTests
 
 		if (response.StatusCode != HttpStatusCode.OK)
 		{
-			Assert.True(false, $"Expected 200 but got {(int)response.StatusCode}: {body}");
+			Assert.Fail($"Expected 200 but got {(int)response.StatusCode}: {body}");
 		}
 
 		Assert.Contains("\"summary\"", body, StringComparison.OrdinalIgnoreCase);
@@ -56,34 +59,105 @@ public sealed class MealsEndpointTests
 		Assert.Contains(allowedOrigin, originValues!);
 	}
 
-	private sealed class TestWebApplicationFactory(string? allowedOrigin = null) : WebApplicationFactory<AVI_Meals.Server.Program>
+	[Fact]
+	public async Task GetMeals_ReturnsBadGateway_WhenScrapedUrlIsUntrusted()
+	{
+		await using TestWebApplicationFactory factory = new(stubHandler: new SsrfStubDiningHttpMessageHandler());
+		using HttpClient client = factory.CreateClient();
+
+		using HttpResponseMessage response = await client.GetAsync("/api/meals");
+
+		Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+	}
+
+	[Fact]
+	public async Task Health_ReturnsOkPayload()
+	{
+		await using TestWebApplicationFactory factory = new();
+		using HttpClient client = factory.CreateClient();
+
+		using HttpResponseMessage response = await client.GetAsync("/health");
+		string body = await response.Content.ReadAsStringAsync();
+
+		Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+		Assert.Contains("\"status\":\"ok\"", body, StringComparison.Ordinal);
+		Assert.DoesNotContain("Memory usage", body, StringComparison.OrdinalIgnoreCase);
+	}
+
+	[Fact]
+	public void Production_WithoutCorsOrigins_FailsToStart()
+	{
+		Exception exception = Assert.ThrowsAny<Exception>(() =>
+		{
+			using TestWebApplicationFactory factory = new(environmentName: "Production", clearCorsOrigins: true);
+			_ = factory.CreateClient();
+		});
+
+		Assert.Contains(
+			"Cors:AllowedOrigins",
+			exception.GetBaseException().Message,
+			StringComparison.Ordinal);
+	}
+
+	private sealed class TestWebApplicationFactory(
+		string? allowedOrigin = null,
+		HttpMessageHandler? stubHandler = null,
+		string environmentName = "Development",
+		bool clearCorsOrigins = false) : WebApplicationFactory<AVI_Meals.Server.Program>
 	{
 		protected override void ConfigureWebHost(IWebHostBuilder builder)
 		{
-			if (!string.IsNullOrWhiteSpace(allowedOrigin))
+			_ = builder.UseEnvironment(environmentName);
+
+			if (clearCorsOrigins)
 			{
-				builder.UseSetting("Cors:AllowedOrigins:0", allowedOrigin);
+				_ = builder.UseSetting("Cors:AllowedOrigins:0", string.Empty);
+			}
+			else if (!string.IsNullOrWhiteSpace(allowedOrigin))
+			{
+				_ = builder.UseSetting("Cors:AllowedOrigins:0", allowedOrigin);
 			}
 
 			builder.ConfigureAppConfiguration((_, configBuilder) =>
 			{
-				if (string.IsNullOrWhiteSpace(allowedOrigin))
+				if (!clearCorsOrigins && string.IsNullOrWhiteSpace(allowedOrigin))
 				{
 					return;
 				}
 
-				Dictionary<string, string?> corsSettings = new()
-				{
-					["Cors:AllowedOrigins:0"] = allowedOrigin
-				};
-				configBuilder.AddInMemoryCollection(corsSettings);
+				Dictionary<string, string?> settings = clearCorsOrigins
+					? new() { ["Cors:AllowedOrigins:0"] = string.Empty }
+					: new() { ["Cors:AllowedOrigins:0"] = allowedOrigin };
+
+				configBuilder.AddInMemoryCollection(settings);
 			});
 
 			builder.ConfigureTestServices(services =>
 			{
 				services.RemoveAll(typeof(MealAnalyticsService));
 				services.AddHttpClient<MealAnalyticsService>()
-					.ConfigurePrimaryHttpMessageHandler(() => new StubDiningHttpMessageHandler());
+					.ConfigurePrimaryHttpMessageHandler(() => stubHandler ?? new StubDiningHttpMessageHandler())
+					.AddHttpMessageHandler<SafeOutboundHandler>();
+				services.RemoveAll(typeof(SafeOutboundHandler));
+				services.AddTransient<SafeOutboundHandler>();
+			});
+		}
+	}
+
+	private sealed class SsrfStubDiningHttpMessageHandler : HttpMessageHandler
+	{
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		{
+			string url = request.RequestUri?.ToString() ?? string.Empty;
+			string payload = url.Contains("connecttaylor.atriumcampus.com", StringComparison.OrdinalIgnoreCase)
+				? """
+				<html><body><a href="https://evil.example/path?q=aviserves.com">View Our Menus</a></body></html>
+				"""
+				: "<html><body>Not Found</body></html>";
+
+			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+			{
+				Content = new StringContent(payload, Encoding.UTF8, "text/html")
 			});
 		}
 	}
@@ -168,5 +242,22 @@ public sealed class MealsEndpointTests
 				Content = new StringContent(payload, Encoding.UTF8, payload.StartsWith("[", StringComparison.Ordinal) ? "application/json" : "text/html")
 			});
 		}
+	}
+}
+
+public sealed class OutboundUrlGuardTests
+{
+	[Theory]
+	[InlineData("https://aviserves.com/taylor", true)]
+	[InlineData("https://tayloru.catertrax.com/", true)]
+	[InlineData("https://dish.avifoodsystems.com/taylor", true)]
+	[InlineData("https://connecttaylor.atriumcampus.com/index.php", true)]
+	[InlineData("https://evil.example/aviserves.com", false)]
+	[InlineData("http://aviserves.com/taylor", false)]
+	[InlineData("https://169.254.169.254/latest", false)]
+	[InlineData("https://aviserves.com.evil.com/", false)]
+	public void IsAllowed_ValidatesHostAndScheme(string url, bool expected)
+	{
+		Assert.Equal(expected, OutboundUrlGuard.IsAllowed(new Uri(url)));
 	}
 }

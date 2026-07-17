@@ -14,9 +14,6 @@ tab_width = 4
 indent_style = space
 indent_size = 2
 
-# C# files
-[*.cs]
-
 #### Core EditorConfig Options ####
 
 # Indentation and spacing

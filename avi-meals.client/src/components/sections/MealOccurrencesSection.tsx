@@ -4,9 +4,6 @@ type MealOccurrencesSectionProps = {
 	analytics: MealAnalyticsResponse;
 };
 
-/**
- * Displays deduplicated meal names with occurrence counts.
- */
 export function MealOccurrencesSection({ analytics }: MealOccurrencesSectionProps) {
 	const mealOccurrences = Array.isArray(analytics.mealOccurrences) ? analytics.mealOccurrences : [];
 
@@ -26,8 +23,8 @@ export function MealOccurrencesSection({ analytics }: MealOccurrencesSectionProp
 				<table className="data-table">
 					<thead>
 						<tr>
-							<th>Meal</th>
-							<th>Occurrence count</th>
+							<th scope="col">Meal</th>
+							<th scope="col">Occurrence count</th>
 						</tr>
 					</thead>
 					<tbody>

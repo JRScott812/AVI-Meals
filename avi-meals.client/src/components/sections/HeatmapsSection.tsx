@@ -1,18 +1,9 @@
 import type { HeatmapCell, MealAnalyticsResponse } from '../../types';
 
-/**
- * Props for `HeatmapsSection`.
- */
 type HeatmapsSectionProps = {
-	/**
-	 * Full analytics payload containing computed heatmaps.
-	 */
 	analytics: MealAnalyticsResponse;
 };
 
-/**
- * Displays all heatmap tables available in the analytics payload.
- */
 export function HeatmapsSection({ analytics }: HeatmapsSectionProps) {
 	const legendItems = [
 		{ bucket: 0, label: '0 (none)' },
@@ -26,6 +17,15 @@ export function HeatmapsSection({ analytics }: HeatmapsSectionProps) {
 		const bucket = Math.max(0, Math.min(4, cell.bucket));
 		return `heatmap-cell heatmap-cell-${bucket}`;
 	};
+
+	if (analytics.heatmaps.length === 0) {
+		return (
+			<section className="panel">
+				<h2>Heatmaps</h2>
+				<p>No heatmaps are available for the current menu.</p>
+			</section>
+		);
+	}
 
 	return (
 		<section className="panel">
@@ -44,20 +44,25 @@ export function HeatmapsSection({ analytics }: HeatmapsSectionProps) {
 						<h3>{heatmap.title}</h3>
 						<div className="table-wrap">
 							<table className="data-table heatmap-table">
+								<caption className="visually-hidden">{heatmap.title}</caption>
 								<thead>
 									<tr>
-										<th>Category</th>
+										<th scope="col">Category</th>
 										{heatmap.columns.map(column => (
-											<th key={column}>{column}</th>
+											<th key={column} scope="col">{column}</th>
 										))}
 									</tr>
 								</thead>
 								<tbody>
 									{heatmap.rows.map(row => (
 										<tr key={row.label}>
-											<th>{row.label}</th>
+											<th scope="row">{row.label}</th>
 											{row.cells.map(cell => (
-												<td key={`${row.label}-${cell.label}`} className={getHeatmapCellClassName(cell)} title={`${cell.label}: ${cell.value}`}>
+												<td
+													key={`${row.label}-${cell.label}`}
+													className={getHeatmapCellClassName(cell)}
+													aria-label={`${cell.label}: ${cell.value}`}
+												>
 													<span>{cell.value}</span>
 												</td>
 											))}

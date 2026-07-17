@@ -1,16 +1,12 @@
 import { ChipSeries } from '../common/ChipSeries';
 import type { MealAnalyticsResponse } from '../../types';
+import { formatCurrency } from '../../utils/format';
 
 type DailyMenusSectionProps = {
 	analytics: MealAnalyticsResponse;
-	formatCurrency: (value: number) => string;
 };
 
-/**
- * Displays per-day menus sourced from AVI Dish.
- */
-export function DailyMenusSection({ analytics, formatCurrency }: DailyMenusSectionProps) {
-	// Guard against older payloads that may not include `dailyMenus` yet.
+export function DailyMenusSection({ analytics }: DailyMenusSectionProps) {
 	const dailyMenus = Array.isArray(analytics.dailyMenus) ? analytics.dailyMenus : [];
 
 	if (dailyMenus.length === 0) {
@@ -29,12 +25,12 @@ export function DailyMenusSection({ analytics, formatCurrency }: DailyMenusSecti
 				<table className="data-table">
 					<thead>
 						<tr>
-							<th>Date</th>
-							<th>Meal</th>
-							<th>Station</th>
-							<th>Category</th>
-							<th>Price</th>
-							<th>Tags</th>
+							<th scope="col">Date</th>
+							<th scope="col">Meal</th>
+							<th scope="col">Station</th>
+							<th scope="col">Category</th>
+							<th scope="col">Price</th>
+							<th scope="col">Tags</th>
 						</tr>
 					</thead>
 					<tbody>
