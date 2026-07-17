@@ -73,7 +73,6 @@ public sealed record DailyMenuItem(
 	DiningStation Station,
 	MealType MealType,
 	string Category,
-	decimal? Price,
 	IReadOnlyList<string> Tags);
 
 /// <summary>

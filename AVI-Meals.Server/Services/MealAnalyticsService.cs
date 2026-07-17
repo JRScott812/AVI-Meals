@@ -121,7 +121,6 @@ public sealed class MealAnalyticsService(
 		try
 		{
 			await historyStore.UpsertDailyMenusAsync(liveDailyMenus, locationId, cancellationToken).ConfigureAwait(false);
-			await historyStore.UpsertCatalogMealsAsync(meals, cancellationToken).ConfigureAwait(false);
 
 			IReadOnlyList<DailyMenu> storedMenus = await historyStore
 				.GetStoredDailyMenusAsync(cancellationToken)

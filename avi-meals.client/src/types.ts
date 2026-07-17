@@ -90,7 +90,6 @@ export interface DailyMenuItem {
 	station: DiningStation;
 	mealType: MealType;
 	category: string;
-	price?: number;
 	tags: string[];
 }
 

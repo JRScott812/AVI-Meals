@@ -38,7 +38,7 @@ const pageOptions: DashboardPageOption[] = [
 	{ key: 'summary', label: 'Summary' },
 	{ key: 'predictions', label: 'Predictions' },
 	{ key: 'heatmaps', label: 'Heatmaps' },
-	{ key: 'meals', label: 'Meals' },
+	{ key: 'meals', label: 'Catering catalog' },
 	{ key: 'dailyMenus', label: 'Daily menus' },
 	{ key: 'mealOccurrences', label: 'Meal occurrences' }
 ];
@@ -97,7 +97,7 @@ function App() {
 		<main className="app-shell" aria-busy={isLoading}>
 			<header className="hero">
 				<div className="brand-lockup">
-					<img src={`${import.meta.env.BASE_URL}avi-taylor-mark.svg`} alt="Taylor AVI mark" className="brand-mark" />
+					<img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Taylor AVI mark" className="brand-mark" />
 					<div>
 						<p className="brand-kicker">Taylor Dining by AVI Fresh</p>
 						<h1>AVI Meals</h1>

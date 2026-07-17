@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChipSeries } from '../common/ChipSeries';
 import type { MealAnalyticsResponse } from '../../types';
-import { formatCurrency, formatEnumLabel } from '../../utils/format';
+import { formatEnumLabel } from '../../utils/format';
 
 type DailyMenusSectionProps = {
 	analytics: MealAnalyticsResponse;
@@ -39,7 +39,10 @@ export function DailyMenusSection({ analytics }: DailyMenusSectionProps) {
 	return (
 		<section className="panel">
 			<h2>Daily menus</h2>
-			<p className="panel-note">{sortedMenus.length} day{sortedMenus.length === 1 ? '' : 's'} in history. Expand a day to view items.</p>
+			<p className="panel-note">
+				{sortedMenus.length} day{sortedMenus.length === 1 ? '' : 's'} of Hodson residential history.
+				Expand a day to view items. Meal-plan dining does not publish per-item prices.
+			</p>
 			<div className="content-stack">
 				{sortedMenus.map(day => {
 					const isExpanded = expandedDates.has(day.date);
@@ -63,7 +66,6 @@ export function DailyMenusSection({ analytics }: DailyMenusSectionProps) {
 												<th scope="col">Station</th>
 												<th scope="col">Meal type</th>
 												<th scope="col">Category</th>
-												<th scope="col">Price</th>
 												<th scope="col">Tags</th>
 											</tr>
 										</thead>
@@ -74,7 +76,6 @@ export function DailyMenusSection({ analytics }: DailyMenusSectionProps) {
 													<td>{formatEnumLabel(item.station)}</td>
 													<td>{formatEnumLabel(item.mealType)}</td>
 													<td>{item.category}</td>
-													<td>{item.price === undefined ? '—' : formatCurrency(item.price)}</td>
 													<td><ChipSeries items={item.tags.length === 0 ? ['none'] : item.tags} /></td>
 												</tr>
 											))}

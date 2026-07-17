@@ -13,9 +13,9 @@ public sealed class MealHistoryStoreTests
 	[Fact]
 	public void MergeDailyMenus_PrefersLiveDayOverStored()
 	{
-		DailyMenu stored = new(new DateOnly(2026, 1, 5), [new DailyMenuItem("Old", DiningStation.Trattoria, MealType.Lunch, "Pasta", 1m, [])]);
-		DailyMenu live = new(new DateOnly(2026, 1, 5), [new DailyMenuItem("New", DiningStation.Grill, MealType.Dinner, "Grill", 2m, [])]);
-		DailyMenu older = new(new DateOnly(2026, 1, 1), [new DailyMenuItem("Past", DiningStation.Homestyle, MealType.Breakfast, "Breakfast", null, [])]);
+		DailyMenu stored = new(new DateOnly(2026, 1, 5), [new DailyMenuItem("Old", DiningStation.Trattoria, MealType.Lunch, "Pasta", [])]);
+		DailyMenu live = new(new DateOnly(2026, 1, 5), [new DailyMenuItem("New", DiningStation.Grill, MealType.Dinner, "Grill", [])]);
+		DailyMenu older = new(new DateOnly(2026, 1, 1), [new DailyMenuItem("Past", DiningStation.Homestyle, MealType.Breakfast, "Breakfast", [])]);
 
 		IReadOnlyList<DailyMenu> merged = MealHistoryStore.MergeDailyMenus([live], [stored, older]);
 

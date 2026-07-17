@@ -26,6 +26,15 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 			return;
 		}
 
+		// History is Hodson residential dining only (AVI Dish location 183).
+		if (locationId != DishMenuClient.HodsonLocationId)
+		{
+			logger.LogInformation(
+				"Skipping history upsert for non-Hodson location {LocationId}",
+				locationId);
+			return;
+		}
+
 		await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
 		MealsDbContext? db = scope.ServiceProvider.GetService<MealsDbContext>();
 		if (db is null)
@@ -55,7 +64,7 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 			}
 			else
 			{
-				existingDay.LocationId = locationId ?? existingDay.LocationId;
+				existingDay.LocationId = locationId;
 				existingDay.UpdatedAtUtc = now;
 				db.MenuItems.RemoveRange(existingDay.Items);
 				existingDay.Items.Clear();
@@ -69,59 +78,9 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 					Station = item.Station.ToString(),
 					MealType = item.MealType.ToString(),
 					Category = item.Category,
-					Price = item.Price,
 					TagsJson = JsonSerializer.Serialize(item.Tags, JsonOptions)
 				});
 			}
-		}
-
-		_ = await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-	}
-
-	public async Task UpsertCatalogMealsAsync(
-		IReadOnlyList<MealItem> meals,
-		CancellationToken cancellationToken)
-	{
-		if (meals.Count == 0)
-		{
-			return;
-		}
-
-		await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
-		MealsDbContext? db = scope.ServiceProvider.GetService<MealsDbContext>();
-		if (db is null)
-		{
-			return;
-		}
-
-		DateTimeOffset now = DateTimeOffset.UtcNow;
-		foreach (MealItem meal in meals)
-		{
-			cancellationToken.ThrowIfCancellationRequested();
-
-			CatalogMealEntity? existing = await db.CatalogMeals
-				.FirstOrDefaultAsync(row => row.ProductUrl == meal.ProductUrl, cancellationToken)
-				.ConfigureAwait(false);
-
-			if (existing is null)
-			{
-				db.CatalogMeals.Add(new CatalogMealEntity
-				{
-					Category = meal.Category.ToString(),
-					Name = meal.Name,
-					Description = meal.Description,
-					Price = meal.Price,
-					ProductUrl = meal.ProductUrl,
-					UpdatedAtUtc = now
-				});
-				continue;
-			}
-
-			existing.Category = meal.Category.ToString();
-			existing.Name = meal.Name;
-			existing.Description = meal.Description;
-			existing.Price = meal.Price;
-			existing.UpdatedAtUtc = now;
 		}
 
 		_ = await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -184,7 +143,6 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 					ParseStoredStation(item.Station),
 					ParseStoredMealType(item.MealType, item.Station),
 					item.Category,
-					item.Price,
 					DeserializeStringList(item.TagsJson)))]))];
 	}
 
@@ -222,8 +180,15 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 			{
 				await db.MenuItems.ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
 				await db.MenuDays.ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-				await db.CatalogMeals.ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-				logger.LogInformation("Cleared existing meal history before forced backfill");
+				logger.LogInformation("Cleared existing Hodson meal history before forced backfill");
+			}
+
+			if (locationId != DishMenuClient.HodsonLocationId)
+			{
+				logger.LogInformation(
+					"Skipping Dish backfill for non-Hodson location {LocationId}",
+					locationId);
+				return;
 			}
 
 			const int emptyWeeksToStop = 4;

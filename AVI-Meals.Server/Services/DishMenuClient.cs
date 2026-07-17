@@ -14,7 +14,8 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 	private const string DishMenuWeekUrlFormat =
 		"https://dish.avifoodsystems.com/api/menu-items/week?date={0}&locationId={1}&mealId={2}";
 	private const string DefaultClientName = "taylor";
-	private const int PreferredTaylorLocationId = 183;
+	public const int HodsonLocationId = 183;
+	private const int PreferredTaylorLocationId = HodsonLocationId;
 
 	public async Task<IReadOnlyList<DailyMenu>> BuildDailyMenusAsync(string dishUrl, CancellationToken cancellationToken)
 	{
@@ -88,7 +89,6 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 						item.Station,
 						item.MealType,
 						item.Category,
-						item.Price,
 						item.Tags))
 				]))];
 	}
@@ -310,9 +310,6 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 		string category = TryGetPropertyString(element, "categoryName", out string categoryName)
 			? categoryName.Trim()
 			: "Uncategorized";
-		decimal? price = TryGetPropertyDecimal(element, "price", out decimal parsedPrice)
-			? parsedPrice
-			: null;
 
 		List<string> tags = [];
 		if (element.TryGetProperty("preferences", out JsonElement preferencesElement)
@@ -345,7 +342,6 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 			station,
 			mealType,
 			category,
-			price,
 			[.. tags.Distinct(StringComparer.OrdinalIgnoreCase)]);
 		return true;
 	}
@@ -398,30 +394,6 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 		return true;
 	}
 
-	private static bool TryGetPropertyDecimal(JsonElement element, string propertyName, out decimal value)
-	{
-		value = 0m;
-		if (!element.TryGetProperty(propertyName, out JsonElement property))
-		{
-			return false;
-		}
-
-		if (property.ValueKind == JsonValueKind.Number && property.TryGetDecimal(out decimal directValue))
-		{
-			value = directValue;
-			return true;
-		}
-
-		if (property.ValueKind == JsonValueKind.String
-			&& decimal.TryParse(property.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out decimal textValue))
-		{
-			value = textValue;
-			return true;
-		}
-
-		return false;
-	}
-
 	private sealed record DishRouteContext(string ClientName, int? LocationId, int? MealId, DateOnly? Date)
 	{
 		public static DishRouteContext Empty { get; } = new(DefaultClientName, null, null, null);
@@ -441,7 +413,6 @@ internal sealed class DishMenuClient(DiningHttpFetcher http)
 		DiningStation Station,
 		MealType MealType,
 		string Category,
-		decimal? Price,
 		IReadOnlyList<string> Tags);
 
 	private sealed class DishItemKeyComparer

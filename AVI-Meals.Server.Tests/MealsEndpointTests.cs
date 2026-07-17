@@ -148,15 +148,15 @@ public sealed class MealsEndpointTests
 			builder.ConfigureTestServices(services =>
 			{
 				// Integration tests must never touch a real Postgres/Neon instance from user secrets.
-				services.RemoveAll(typeof(MealsDbContext));
-				services.RemoveAll(typeof(DbContextOptions<MealsDbContext>));
-				services.RemoveAll(typeof(DbContextOptions));
+				services.RemoveAll<MealsDbContext>();
+				services.RemoveAll<DbContextOptions<MealsDbContext>>();
+				services.RemoveAll<DbContextOptions>();
 
-				services.RemoveAll(typeof(MealAnalyticsService));
+				services.RemoveAll<MealAnalyticsService>();
 				services.AddHttpClient<MealAnalyticsService>()
 					.ConfigurePrimaryHttpMessageHandler(() => stubHandler ?? new StubDiningHttpMessageHandler())
 					.AddHttpMessageHandler<SafeOutboundHandler>();
-				services.RemoveAll(typeof(SafeOutboundHandler));
+				services.RemoveAll<SafeOutboundHandler>();
 				services.AddTransient<SafeOutboundHandler>();
 			});
 		}
@@ -272,7 +272,7 @@ public sealed class MealsEndpointTests
 
 			return Task.FromResult(new HttpResponseMessage(statusCode)
 			{
-				Content = new StringContent(payload, Encoding.UTF8, payload.StartsWith("[", StringComparison.Ordinal) ? "application/json" : "text/html")
+				Content = new StringContent(payload, Encoding.UTF8, payload.StartsWith('[') ? "application/json" : "text/html")
 			});
 		}
 	}

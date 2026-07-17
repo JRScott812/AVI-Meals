@@ -6,7 +6,6 @@ public sealed class MealsDbContext(DbContextOptions<MealsDbContext> options) : D
 {
 	public DbSet<MenuDayEntity> MenuDays => Set<MenuDayEntity>();
 	public DbSet<MenuItemEntity> MenuItems => Set<MenuItemEntity>();
-	public DbSet<CatalogMealEntity> CatalogMeals => Set<CatalogMealEntity>();
 	public DbSet<ScrapeRunEntity> ScrapeRuns => Set<ScrapeRunEntity>();
 
 	protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -33,16 +32,6 @@ public sealed class MealsDbContext(DbContextOptions<MealsDbContext> options) : D
 				.WithMany(day => day.Items)
 				.HasForeignKey(item => item.MenuDayId)
 				.OnDelete(DeleteBehavior.Cascade);
-		});
-
-		modelBuilder.Entity<CatalogMealEntity>(entity =>
-		{
-			entity.ToTable("catalog_meals");
-			entity.HasKey(meal => meal.Id);
-			entity.Property(meal => meal.Category).HasMaxLength(64).IsRequired();
-			entity.Property(meal => meal.Name).HasMaxLength(512).IsRequired();
-			entity.Property(meal => meal.ProductUrl).HasMaxLength(2048).IsRequired();
-			entity.HasIndex(meal => meal.ProductUrl).IsUnique();
 		});
 
 		modelBuilder.Entity<ScrapeRunEntity>(entity =>

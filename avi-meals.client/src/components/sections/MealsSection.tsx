@@ -11,15 +11,16 @@ export function MealsSection({ analytics }: MealsSectionProps) {
 	if (analytics.meals.length === 0) {
 		return (
 			<section className="panel">
-				<h2>Meals</h2>
-				<p>No meals are currently available from the public menu.</p>
+				<h2>Catering catalog</h2>
+				<p>No meals are currently available from the public catering menu.</p>
 			</section>
 		);
 	}
 
 	return (
 		<section className="panel">
-			<h2>Meals</h2>
+			<h2>Catering catalog</h2>
+			<p className="panel-note">Priced items from the public CaterTrax catering menu (not the residential dining hall).</p>
 			<div className="table-wrap">
 				<table className="data-table">
 					<thead>

@@ -65,7 +65,6 @@ const mockAnalyticsResponse = {
 					station: 'MainLine',
 					mealType: 'Lunch',
 					category: 'Pizza & Pasta',
-					price: 10.25,
 					tags: ['vegan', 'contains soy']
 				}
 			]
@@ -105,7 +104,7 @@ describe('App', () => {
 		expect(screen.getByText(/^Legend$/)).toBeInTheDocument();
 	});
 
-	it('switches to meals page when the Meals button is clicked', async () => {
+	it('switches to catering catalog page when the nav button is clicked', async () => {
 		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
 			ok: true,
 			json: async () => mockAnalyticsResponse
@@ -120,10 +119,10 @@ describe('App', () => {
 		const pagesNav = screen.getAllByText(/^Pages$/)[0].closest('nav');
 		expect(pagesNav).not.toBeNull();
 
-		const mealsPageButton = within(pagesNav!).getByRole('button', { name: 'Meals' });
+		const mealsPageButton = within(pagesNav!).getByRole('button', { name: 'Catering catalog' });
 		fireEvent.click(mealsPageButton);
 
-		expect(within(pagesNav!).getByRole('button', { name: 'Meals' })).toHaveAttribute('aria-current', 'page');
+		expect(within(pagesNav!).getByRole('button', { name: 'Catering catalog' })).toHaveAttribute('aria-current', 'page');
 		expect(within(pagesNav!).getByRole('button', { name: 'Summary' })).not.toHaveAttribute('aria-current');
 	});
 
@@ -168,7 +167,7 @@ describe('App', () => {
 		const pagesNav = screen.getAllByText(/^Pages$/)[0].closest('nav');
 		fireEvent.click(within(pagesNav!).getByRole('button', { name: 'Daily menus' }));
 
-		expect(screen.getByText(/1 day in history/i)).toBeInTheDocument();
+		expect(screen.getByText(/1 day of Hodson residential history/i)).toBeInTheDocument();
 		const dayToggle = screen.getByRole('button', { name: /1 item/i });
 		fireEvent.click(dayToggle);
 		expect(screen.getByText('Main Line')).toBeInTheDocument();
