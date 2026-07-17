@@ -9,11 +9,16 @@ on:
       - master
   workflow_dispatch:
 
+env:
+  CI: true
+  BuildingInsideDocker: true
+  DOTNET_NOLOGO: true
+
 jobs:
   build:
     runs-on: windows-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -23,11 +28,20 @@ jobs:
         with:
           dotnet-version: '10.x'
 
-      - name: Build with dotnet
-        run: dotnet build --configuration Release
+      - name: Restore
+        run: dotnet restore AVI-Meals.Server/AVI-Meals.Server.csproj
 
-      - name: dotnet publish
-        run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
+      - name: Build with dotnet
+        run: dotnet build AVI-Meals.Server/AVI-Meals.Server.csproj --configuration Release --no-restore
+        env:
+          CI: true
+          BuildingInsideDocker: true
+
+      - name: Publish
+        run: dotnet publish AVI-Meals.Server/AVI-Meals.Server.csproj -c Release -o "${{env.DOTNET_ROOT}}/myapp" --no-restore
+        env:
+          CI: true
+          BuildingInsideDocker: true
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -39,21 +53,45 @@ jobs:
     runs-on: windows-latest
     needs: build
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: .net-app
-      
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_FEDE99B3543044B8AB2B3FB16F2B605A }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_B492564EC9F44268BA329D57E306BC1A }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_983CA3DBE6014B70833142AA9BABF3B3 }}
+
+      - name: Configure App Service settings
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            RG="$(az webapp list --query "[?name=='AVI-Meals-Server'].resourceGroup | [0]" -o tsv)"
+            az webapp config appsettings set \
+              --resource-group "$RG" \
+              --name AVI-Meals-Server \
+              --settings \
+                ASPNETCORE_ENVIRONMENT=Production \
+                Cors__AllowedOrigins__0=https://jrscott812.github.io \
+              --output none
+            az webapp config set \
+              --resource-group "$RG" \
+              --name AVI-Meals-Server \
+              --always-on true \
+              --ftps-state Disabled \
+              --output none
+            az webapp config set \
+              --resource-group "$RG" \
+              --name AVI-Meals-Server \
+              --generic-configurations "{\"healthCheckPath\":\"/health\"}" \
+              --output none || echo "healthCheckPath update skipped"
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
@@ -62,4 +100,23 @@ jobs:
           app-name: 'AVI-Meals-Server'
           slot-name: 'Production'
           package: .
-          
+
+      - name: Verify health endpoint
+        shell: pwsh
+        run: |
+          $url = "https://avi-meals-server.azurewebsites.net/health"
+          $ok = $false
+          for ($i = 1; $i -le 12; $i++) {
+            try {
+              $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30
+              if ($response.StatusCode -eq 200 -and $response.Content -match '"status"\s*:\s*"ok"') {
+                Write-Host "Health check passed on attempt $i"
+                $ok = $true
+                break
+              }
+            } catch {
+              Write-Host "Attempt $i failed: $($_.Exception.Message)"
+            }
+            Start-Sleep -Seconds 5
+          }
+          if (-not $ok) { throw "Azure /health did not return ok after deploy." }

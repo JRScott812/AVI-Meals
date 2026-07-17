@@ -21,7 +21,11 @@ RUN cp -r ./AVI-Meals.Server/wwwroot.bak /app/publish/wwwroot || true
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=server-build /app/publish .
-# Debug: List contents of /app and wwwroot to verify DLL and static assets presence
-RUN ls -lh /app && ls -lh /app/wwwroot || echo "No wwwroot directory"
+COPY AVI-Meals.Server/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh \
+	&& chmod +x /app/docker-entrypoint.sh \
+	&& ls -lh /app \
+	&& (ls -lh /app/wwwroot || echo "No wwwroot directory")
+ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 EXPOSE 8080
-ENTRYPOINT ["dotnet", "AVI-Meals.Server.dll"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

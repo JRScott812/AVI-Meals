@@ -1,6 +1,7 @@
 using AVI_Meals.Server.Models;
 using AVI_Meals.Server.Services;
 
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -9,6 +10,7 @@ namespace AVI_Meals.Server.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [EnableRateLimiting("api")]
+[EnableCors("ClientCors")]
 public sealed class MealsController(MealAnalyticsService mealAnalyticsService) : ControllerBase
 {
 	/// <summary>

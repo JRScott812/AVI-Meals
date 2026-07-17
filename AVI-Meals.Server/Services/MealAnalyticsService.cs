@@ -10,10 +10,12 @@ namespace AVI_Meals.Server.Services;
 public sealed class MealAnalyticsService(
 	HttpClient httpClient,
 	IMemoryCache cache,
-	MealHistoryStore historyStore)
+	MealHistoryStore historyStore,
+	ILogger<MealAnalyticsService> logger)
 {
 	private const string CacheKey = "meal-analytics";
 	private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(30);
+	private static readonly TimeSpan FallbackCacheDuration = TimeSpan.FromMinutes(5);
 	private static readonly SemaphoreSlim CacheLock = new(1, 1);
 	private const string PortalUrl = "https://connecttaylor.atriumcampus.com/index.php";
 	private const string DishSiteUrl = "https://dish.avifoodsystems.com/taylor/183/week";
@@ -22,6 +24,7 @@ public sealed class MealAnalyticsService(
 
 	/// <summary>
 	/// Gets the latest meal analytics snapshot from the public dining sources.
+	/// Falls back to stored Hodson history when live upstream scraping fails.
 	/// </summary>
 	public async Task<MealAnalyticsResponse> GetAnalyticsAsync(CancellationToken cancellationToken)
 	{
@@ -38,9 +41,28 @@ public sealed class MealAnalyticsService(
 				return cached;
 			}
 
-			MealAnalyticsResponse result = await BuildAnalyticsAsync(cancellationToken).ConfigureAwait(false);
-			_ = cache.Set(CacheKey, result, CacheDuration);
-			return result;
+			try
+			{
+				MealAnalyticsResponse result = await BuildAnalyticsAsync(cancellationToken).ConfigureAwait(false);
+				_ = cache.Set(CacheKey, result, CacheDuration);
+				return result;
+			}
+			catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException)
+			{
+				MealAnalyticsResponse? fallback = await TryBuildHistoryFallbackAsync(cancellationToken)
+					.ConfigureAwait(false);
+				if (fallback is not null)
+				{
+					logger.LogWarning(
+						exception,
+						"Live dining scrape failed; serving {DayCount} stored Hodson menu day(s) instead",
+						fallback.DailyMenus.Count);
+					_ = cache.Set(CacheKey, fallback, FallbackCacheDuration);
+					return fallback;
+				}
+
+				throw;
+			}
 		}
 		finally
 		{
@@ -53,6 +75,32 @@ public sealed class MealAnalyticsService(
 	/// </summary>
 	public Task<MealAnalyticsResponse> FillDatabaseAsync(CancellationToken cancellationToken) =>
 		BuildAnalyticsAsync(cancellationToken, forceHistoryBackfill: true);
+
+	private async Task<MealAnalyticsResponse?> TryBuildHistoryFallbackAsync(CancellationToken cancellationToken)
+	{
+		IReadOnlyList<DailyMenu> storedMenus;
+		try
+		{
+			storedMenus = await historyStore.GetStoredDailyMenusAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception exception) when (exception is not OperationCanceledException)
+		{
+			logger.LogError(exception, "Failed to read stored meal history for fallback");
+			return null;
+		}
+
+		if (storedMenus.Count == 0)
+		{
+			return null;
+		}
+
+		return CreateAnalyticsResponse(
+			PortalUrl,
+			"https://aviserves.com/taylor/meal-plans-and-dining.html",
+			"https://tayloru.catertrax.com/menugrid.asp?mode=aff",
+			[],
+			storedMenus);
+	}
 
 	private async Task<MealAnalyticsResponse> BuildAnalyticsAsync(
 		CancellationToken cancellationToken,
@@ -141,23 +189,32 @@ public sealed class MealAnalyticsService(
 			dailyMenus = MealMenuAggregator.DeduplicateDailyMenus(liveDailyMenus);
 		}
 
-		dailyMenus = MealMenuAggregator.DeduplicateDailyMenus(dailyMenus);
+		return CreateAnalyticsResponse(PortalUrl, diningUrl, menuUrl, meals, dailyMenus);
+	}
 
+	private static MealAnalyticsResponse CreateAnalyticsResponse(
+		string portalUrl,
+		string diningUrl,
+		string menuUrl,
+		IReadOnlyList<MealItem> meals,
+		IReadOnlyList<DailyMenu> dailyMenus)
+	{
+		DailyMenu[] normalizedMenus = [.. MealMenuAggregator.DeduplicateDailyMenus(dailyMenus)];
 		MealItem[] orderedMeals = [.. meals
 			.OrderBy(meal => meal.Category)
 			.ThenBy(meal => meal.Name, StringComparer.OrdinalIgnoreCase)];
 
 		return new MealAnalyticsResponse(
-			PortalUrl,
+			portalUrl,
 			diningUrl,
 			menuUrl,
 			DateTimeOffset.UtcNow,
 			MealAnalyticsBuilder.BuildSummary(orderedMeals),
 			orderedMeals,
-			MealAnalyticsBuilder.BuildHeatmaps(orderedMeals, dailyMenus),
-			MealAnalyticsBuilder.BuildPredictions(orderedMeals, dailyMenus),
-			MealAnalyticsBuilder.BuildUnannouncedMealPredictions(orderedMeals, dailyMenus),
-			dailyMenus,
-			MealAnalyticsBuilder.BuildMealOccurrences(orderedMeals, dailyMenus));
+			MealAnalyticsBuilder.BuildHeatmaps(orderedMeals, normalizedMenus),
+			MealAnalyticsBuilder.BuildPredictions(orderedMeals, normalizedMenus),
+			MealAnalyticsBuilder.BuildUnannouncedMealPredictions(orderedMeals, normalizedMenus),
+			normalizedMenus,
+			MealAnalyticsBuilder.BuildMealOccurrences(orderedMeals, normalizedMenus));
 	}
 }

@@ -357,6 +357,29 @@ ASALocalRun/
 appsettings.*.local.json
 secrets.json
 
+# Local scratch / curl response dumps
+/body.txt
+/meals.txt
+*.http.json
+
+# Docker / publish scratch
+**/wwwroot.bak/
+
+# Coverage / test artifacts
+coverage/
+*.coverage
+*.coveragexml
+TestResults/
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Cursor / editor local
+.cursor/
+!.cursor/rules/
+
 # BeatPulse healthcheck temp database
 healthchecksdb
 

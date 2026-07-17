@@ -2,9 +2,11 @@
 
 # Node / package managers
 node_modules/
+.npm/
+.yarn/
+.pnpm-store/
 pnpm-lock.yaml
 yarn.lock
-package-lock.json
 
 # Build output
 dist/
@@ -16,16 +18,33 @@ obj/
 # Vite / tooling cache
 .cache/
 .parcel-cache/
+.turbo/
+*.tsbuildinfo
 
 # Logs
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Tests / coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+vitest.config.*.timestamp*
+
 # Local env files
 .env
 .env.*
+!.env.example
+!.env.*.example
 
-#VS Code
+# Editor / OS
 .vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

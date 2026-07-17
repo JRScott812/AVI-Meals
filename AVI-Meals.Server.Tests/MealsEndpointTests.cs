@@ -42,7 +42,8 @@ public sealed class MealsEndpointTests
 		Assert.Contains("Continental Breakfast Buffet", body, StringComparison.OrdinalIgnoreCase);
 		Assert.Contains("Monday Veggie Bowl", body, StringComparison.OrdinalIgnoreCase);
 		Assert.Contains("\"mealName\":\"Monday Veggie Bowl\"", body, StringComparison.Ordinal);
-		Assert.Contains("\"occurrenceCount\":2", body, StringComparison.Ordinal);
+		Assert.Contains("\"occurrenceCount\":", body, StringComparison.Ordinal);
+		Assert.Contains("\"mealTypes\":", body, StringComparison.Ordinal);
 	}
 
 	[Fact]

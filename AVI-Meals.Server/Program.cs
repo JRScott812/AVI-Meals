@@ -118,10 +118,18 @@ public class Program
 
 		if (!string.IsNullOrWhiteSpace(connectionString))
 		{
-			using IServiceScope scope = app.Services.CreateScope();
-			MealsDbContext db = scope.ServiceProvider.GetRequiredService<MealsDbContext>();
-			db.Database.Migrate();
-			logger.LogInformation("Applied meal history database migrations");
+			try
+			{
+				using IServiceScope scope = app.Services.CreateScope();
+				MealsDbContext db = scope.ServiceProvider.GetRequiredService<MealsDbContext>();
+				db.Database.Migrate();
+				logger.LogInformation("Applied meal history database migrations");
+			}
+			catch (Exception exception) when (exception is not OperationCanceledException)
+			{
+				// Keep the API available even if history storage is temporarily unreachable.
+				logger.LogError(exception, "Failed to apply meal history migrations; continuing without DB history");
+			}
 		}
 
 		if (args.Any(argument => string.Equals(argument, "--backfill", StringComparison.OrdinalIgnoreCase)))
@@ -148,6 +156,11 @@ public class Program
 			_ = context.Response.Headers.TryAdd("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
 			await next().ConfigureAwait(false);
 		});
+
+		// CORS must run before HTTPS redirection / endpoints so browser preflights and
+		// error responses from this app still include Access-Control-Allow-Origin.
+		_ = app.UseCors(ClientCorsPolicyName);
+
 		_ = app.UseDefaultFiles();
 		_ = app.MapStaticAssets();
 
@@ -160,11 +173,20 @@ public class Program
 			_ = app.UseHsts();
 		}
 
-		_ = app.UseHttpsRedirection();
-		_ = app.UseCors(ClientCorsPolicyName);
+		// Platform proxies (Heroku / Azure App Service) terminate TLS and forward HTTP to the app.
+		// Skipping HTTPS redirection avoids redirect loops and broken health probes.
+		bool behindPlatformProxy =
+			!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DYNO"))
+			|| !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME"));
+		if (!behindPlatformProxy)
+		{
+			_ = app.UseHttpsRedirection();
+		}
+
 		_ = app.UseRateLimiter();
-		_ = app.MapControllers();
+		_ = app.MapControllers().RequireCors(ClientCorsPolicyName);
 		_ = app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
+			.RequireCors(ClientCorsPolicyName)
 			.RequireRateLimiting(ApiRateLimitPolicyName);
 
 		logger.LogInformation("AVI-Meals server starting");
