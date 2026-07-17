@@ -487,6 +487,222 @@ a:hover {
 	gap: 0.35rem;
 }
 
+.tag-legend {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+	margin: 0 0 1rem;
+}
+
+.tag-legend-label {
+	font-family: var(--font-sans);
+	font-size: 0.72rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06rem;
+	color: var(--color-muted);
+	margin-right: 0.25rem;
+}
+
+.chip-none {
+	background: var(--color-surface-soft);
+	border-color: var(--color-border);
+	color: var(--color-muted);
+	font-style: italic;
+}
+
+.chip-vegan {
+	background: rgba(0, 175, 206, 0.16);
+	border-color: #00afce;
+	color: #0a6f84;
+}
+
+.chip-vegetarian {
+	background: rgba(46, 125, 50, 0.14);
+	border-color: #2e7d32;
+	color: #1b5e20;
+}
+
+.chip-gluten-free {
+	background: rgba(193, 160, 39, 0.18);
+	border-color: #c1a027;
+	color: #7a6410;
+}
+
+.chip-breakfast {
+	background: rgba(193, 160, 39, 0.16);
+	border-color: #c1a027;
+	color: #6b5710;
+}
+
+.chip-brunch {
+	background: rgba(0, 175, 206, 0.14);
+	border-color: #00afce;
+	color: #0a6f84;
+}
+
+.chip-lunch {
+	background: rgba(82, 45, 114, 0.12);
+	border-color: #522d72;
+	color: #3f2260;
+}
+
+.chip-dinner {
+	background: rgba(27, 54, 95, 0.14);
+	border-color: #1b365f;
+	color: #1b365f;
+}
+
+.chip-allergen,
+.chip-allergen-dairy,
+.chip-allergen-egg,
+.chip-allergen-soy,
+.chip-allergen-wheat,
+.chip-allergen-nut,
+.chip-allergen-seafood,
+.chip-allergen-sesame {
+	font-weight: 700;
+}
+
+.chip-allergen {
+	background: rgba(225, 79, 61, 0.14);
+	border-color: #e14f3d;
+	color: #9a2f22;
+}
+
+.chip-allergen-dairy {
+	background: rgba(27, 54, 95, 0.14);
+	border-color: #1b365f;
+	color: #1b365f;
+}
+
+.chip-allergen-egg {
+	background: rgba(193, 160, 39, 0.22);
+	border-color: #a8891c;
+	color: #6b5710;
+}
+
+.chip-allergen-soy {
+	background: rgba(82, 45, 114, 0.14);
+	border-color: #522d72;
+	color: #3f2260;
+}
+
+.chip-allergen-wheat {
+	background: rgba(178, 180, 190, 0.35);
+	border-color: #8a8c96;
+	color: #4a4c56;
+}
+
+.chip-allergen-nut {
+	background: rgba(225, 79, 61, 0.2);
+	border-color: #c43d2c;
+	color: #8a281c;
+}
+
+.chip-allergen-seafood {
+	background: rgba(0, 175, 206, 0.2);
+	border-color: #0089a3;
+	color: #0a5a6c;
+}
+
+.chip-allergen-sesame {
+	background: rgba(139, 90, 43, 0.16);
+	border-color: #8b5a2b;
+	color: #5c3a1a;
+}
+
+[data-theme="dark"] .chip-vegan {
+	background: rgba(0, 175, 206, 0.28);
+	border-color: #4ec8e0;
+	color: #9fe4f2;
+}
+
+[data-theme="dark"] .chip-vegetarian {
+	background: rgba(76, 175, 80, 0.28);
+	border-color: #81c784;
+	color: #c8e6c9;
+}
+
+[data-theme="dark"] .chip-gluten-free {
+	background: rgba(193, 160, 39, 0.3);
+	border-color: #d4b84a;
+	color: #f0e2a8;
+}
+
+[data-theme="dark"] .chip-breakfast {
+	background: rgba(193, 160, 39, 0.3);
+	border-color: #d4b84a;
+	color: #f0e2a8;
+}
+
+[data-theme="dark"] .chip-brunch {
+	background: rgba(0, 175, 206, 0.28);
+	border-color: #4ec8e0;
+	color: #9fe4f2;
+}
+
+[data-theme="dark"] .chip-lunch {
+	background: rgba(155, 122, 184, 0.3);
+	border-color: #c4a8db;
+	color: #e8dff0;
+}
+
+[data-theme="dark"] .chip-dinner {
+	background: rgba(100, 140, 200, 0.28);
+	border-color: #8eb0dc;
+	color: #c5d8f0;
+}
+
+[data-theme="dark"] .chip-allergen {
+	background: rgba(225, 79, 61, 0.28);
+	border-color: #f08a7c;
+	color: #f5b5aa;
+}
+
+[data-theme="dark"] .chip-allergen-dairy {
+	background: rgba(100, 140, 200, 0.28);
+	border-color: #8eb0dc;
+	color: #c5d8f0;
+}
+
+[data-theme="dark"] .chip-allergen-egg {
+	background: rgba(193, 160, 39, 0.32);
+	border-color: #d4b84a;
+	color: #f0e2a8;
+}
+
+[data-theme="dark"] .chip-allergen-soy {
+	background: rgba(155, 122, 184, 0.32);
+	border-color: #c4a8db;
+	color: #e8dff0;
+}
+
+[data-theme="dark"] .chip-allergen-wheat {
+	background: rgba(178, 180, 190, 0.22);
+	border-color: #b2b4be;
+	color: #d8dae0;
+}
+
+[data-theme="dark"] .chip-allergen-nut {
+	background: rgba(225, 79, 61, 0.34);
+	border-color: #f08a7c;
+	color: #ffc9c0;
+}
+
+[data-theme="dark"] .chip-allergen-seafood {
+	background: rgba(0, 175, 206, 0.3);
+	border-color: #4ec8e0;
+	color: #9fe4f2;
+}
+
+[data-theme="dark"] .chip-allergen-sesame {
+	background: rgba(210, 160, 100, 0.28);
+	border-color: #d2a064;
+	color: #f0d4b0;
+}
+
 .table-wrap {
 	overflow-x: auto;
 }

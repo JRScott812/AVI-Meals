@@ -70,7 +70,7 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 				existingDay.Items.Clear();
 			}
 
-			foreach (DailyMenuItem item in day.Items)
+			foreach (DailyMenuItem item in DeduplicateDayItems(day.Items))
 			{
 				existingDay.Items.Add(new MenuItemEntity
 				{
@@ -263,8 +263,11 @@ public sealed class MealHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
 			byDate[day.Date] = day;
 		}
 
-		return [.. byDate.Values.OrderBy(day => day.Date)];
+		return MealMenuAggregator.DeduplicateDailyMenus([.. byDate.Values.OrderBy(day => day.Date)]);
 	}
+
+	private static IReadOnlyList<DailyMenuItem> DeduplicateDayItems(IReadOnlyList<DailyMenuItem> items) =>
+		MealMenuAggregator.DeduplicateDailyMenus([new DailyMenu(DateOnly.MinValue, items)])[0].Items;
 
 	private static DiningStation ParseStoredStation(string value) =>
 		Enum.TryParse(value, ignoreCase: true, out DiningStation station)

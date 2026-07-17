@@ -1,0 +1,35 @@
+[
+  {
+    "Name": "AVI Meals (API + Client)",
+    "Projects": [
+      {
+        "Path": "AVI-Meals.Server\\AVI-Meals.Server.csproj",
+        "Action": "Start",
+        "DebugTarget": "https (API only)"
+      },
+      {
+        "Path": "avi-meals.client\\avi-meals.client.esproj",
+        "Action": "Start"
+      }
+    ]
+  },
+  {
+    "Name": "API + SpaProxy (starts Vite)",
+    "Projects": [
+      {
+        "Path": "AVI-Meals.Server\\AVI-Meals.Server.csproj",
+        "Action": "Start",
+        "DebugTarget": "https"
+      }
+    ]
+  },
+  {
+    "Name": "Client only",
+    "Projects": [
+      {
+        "Path": "avi-meals.client\\avi-meals.client.esproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

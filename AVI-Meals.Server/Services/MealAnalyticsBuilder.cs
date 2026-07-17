@@ -30,31 +30,8 @@ internal static class MealAnalyticsBuilder
 
 	public static IReadOnlyList<MealOccurrence> BuildMealOccurrences(
 		IReadOnlyList<MealItem> meals,
-		IReadOnlyList<DailyMenu> dailyMenus)
-	{
-		List<MealOccurrence> fromHistory = [.. dailyMenus
-			.SelectMany(day => day.Items.Select(item => (day.Date, Name: item.MealName.Trim())))
-			.Where(entry => !string.IsNullOrWhiteSpace(entry.Name))
-			.GroupBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
-			.Select(group => new MealOccurrence(
-				group.First().Name,
-				group.Select(entry => entry.Date).Distinct().Count()))];
-
-		if (fromHistory.Count > 0)
-		{
-			return [.. fromHistory
-				.OrderByDescending(item => item.OccurrenceCount)
-				.ThenBy(item => item.MealName, StringComparer.OrdinalIgnoreCase)];
-		}
-
-		return [.. meals
-			.Select(meal => meal.Name)
-			.Where(name => !string.IsNullOrWhiteSpace(name))
-			.GroupBy(name => name.Trim(), StringComparer.OrdinalIgnoreCase)
-			.Select(group => new MealOccurrence(group.First(), group.Count()))
-			.OrderByDescending(item => item.OccurrenceCount)
-			.ThenBy(item => item.MealName, StringComparer.OrdinalIgnoreCase)];
-	}
+		IReadOnlyList<DailyMenu> dailyMenus) =>
+		MealMenuAggregator.BuildOccurrences(dailyMenus, meals);
 
 	public static MealSummary BuildSummary(IReadOnlyList<MealItem> meals)
 	{
@@ -182,7 +159,7 @@ internal static class MealAnalyticsBuilder
 		MealOccurrence[] recurring = [.. BuildMealOccurrences([], dailyMenus).Take(5)];
 		string recurringSummary = recurring.Length == 0
 			? "No strong repeat dishes yet"
-			: string.Join(", ", recurring.Select(item => $"{item.MealName} ({item.OccurrenceCount} days)"));
+			: string.Join(", ", recurring.Select(item => $"{item.MealName} ({item.OccurrenceCount} listings)"));
 
 		decimal stationConfidence = decimal.Round(topStation.Count() / (decimal)items.Length, 2);
 		decimal mealTypeConfidence = decimal.Round(topMealType.Count() / (decimal)items.Length, 2);
@@ -191,7 +168,7 @@ internal static class MealAnalyticsBuilder
 			2);
 		decimal recurrenceConfidence = recurring.Length == 0
 			? 0m
-			: decimal.Round(Math.Min(0.9m, recurring[0].OccurrenceCount / (decimal)dayCount), 2);
+			: decimal.Round(Math.Min(0.9m, recurring[0].OccurrenceCount / (decimal)Math.Max(1, items.Length)), 2);
 
 		return
 		[
@@ -209,7 +186,7 @@ internal static class MealAnalyticsBuilder
 				weekdayConfidence),
 			new Prediction(
 				"Dishes most likely to return",
-				$"The most persistent Hodson dishes are {recurringSummary}. Items that already rotate through many days are the best candidates to reappear.",
+				$"The most persistent Hodson dishes are {recurringSummary}. Items that already rotate through many menu listings are the best candidates to reappear.",
 				recurrenceConfidence)
 		];
 	}

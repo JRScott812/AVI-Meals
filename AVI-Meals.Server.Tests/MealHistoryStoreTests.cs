@@ -26,6 +26,56 @@ public sealed class MealHistoryStoreTests
 	}
 
 	[Fact]
+	public void DeduplicateDailyMenus_CombinesSameItemAndUnionsTags()
+	{
+		DailyMenu day = new(
+			new DateOnly(2026, 1, 5),
+			[
+				new DailyMenuItem("Veggie Bowl", DiningStation.MainLine, MealType.Lunch, "Entree", ["Vegan"]),
+				new DailyMenuItem("veggie bowl", DiningStation.MainLine, MealType.Lunch, "Entree", ["Contains Soy"]),
+				new DailyMenuItem("Veggie Bowl", DiningStation.Grill, MealType.Lunch, "Grill", [])
+			]);
+
+		IReadOnlyList<DailyMenu> deduped = MealMenuAggregator.DeduplicateDailyMenus([day]);
+
+		Assert.Equal(2, deduped[0].Items.Count);
+		DailyMenuItem combined = Assert.Single(
+			deduped[0].Items,
+			item => item.Station == DiningStation.MainLine);
+		Assert.Equal("Veggie Bowl", combined.MealName);
+		Assert.Contains("Vegan", combined.Tags);
+		Assert.Contains("Contains Soy", combined.Tags);
+	}
+
+	[Fact]
+	public void BuildOccurrences_CombinesDuplicatesWithTotalListingCount()
+	{
+		IReadOnlyList<DailyMenu> menus =
+		[
+			new DailyMenu(
+				new DateOnly(2026, 1, 5),
+				[
+					new DailyMenuItem("Veggie Bowl", DiningStation.MainLine, MealType.Lunch, "Entree", []),
+					new DailyMenuItem("Veggie Bowl", DiningStation.Grill, MealType.Dinner, "Grill", [])
+				]),
+			new DailyMenu(
+				new DateOnly(2026, 1, 6),
+				[
+					new DailyMenuItem("veggie bowl", DiningStation.MainLine, MealType.Lunch, "Entree", []),
+					new DailyMenuItem("Herb Chicken", DiningStation.Homestyle, MealType.Dinner, "Homestyle", [])
+				])
+		];
+
+		IReadOnlyList<MealOccurrence> occurrences = MealMenuAggregator.BuildOccurrences(menus);
+
+		Assert.Equal(2, occurrences.Count);
+		MealOccurrence veggie = Assert.Single(occurrences, item => item.MealName == "Veggie Bowl");
+		Assert.Equal(3, veggie.OccurrenceCount);
+		Assert.Equal([MealType.Lunch, MealType.Dinner], veggie.MealTypes);
+		Assert.Equal(1, occurrences.Single(item => item.MealName == "Herb Chicken").OccurrenceCount);
+	}
+
+	[Fact]
 	public void DatabaseConnection_NormalizesPostgresUri()
 	{
 		IConfiguration configuration = new ConfigurationBuilder()

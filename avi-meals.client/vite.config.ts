@@ -70,16 +70,15 @@ export default defineConfig(({ command }) => {
 		server: !isServeCommand ? undefined : {
 			// Bind to IPv4 loopback to avoid permission errors when IPv6 (::1) is restricted
 			host: '127.0.0.1',
-			// If the requested port is unavailable, allow Vite to try the next free port
-			strictPort: false,
+			// Must match SpaProxyServerUrl in AVI-Meals.Server.csproj so Visual Studio / SpaProxy can find Vite
+			strictPort: true,
 			proxy: {
 				'^/api': {
 					target,
 					secure: false
 				}
 			},
-			// Use DEV_SERVER_PORT when set, otherwise allow Vite to pick any free port (0)
-			port: env.DEV_SERVER_PORT ? parseInt(env.DEV_SERVER_PORT) : 0,
+			port: env.DEV_SERVER_PORT ? parseInt(env.DEV_SERVER_PORT, 10) : 61774,
 			https: {
 				key: fs.readFileSync(keyFilePath),
 				cert: fs.readFileSync(certFilePath)

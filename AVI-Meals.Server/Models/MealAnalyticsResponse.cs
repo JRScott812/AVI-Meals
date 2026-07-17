@@ -82,4 +82,5 @@ public sealed record DailyMenuItem(
 /// </summary>
 public sealed record MealOccurrence(
 	string MealName,
-	int OccurrenceCount);
+	int OccurrenceCount,
+	IReadOnlyList<MealType> MealTypes);

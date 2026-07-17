@@ -138,8 +138,10 @@ public sealed class MealAnalyticsService(
 		}
 		catch (Exception exception) when (exception is not OperationCanceledException)
 		{
-			dailyMenus = liveDailyMenus;
+			dailyMenus = MealMenuAggregator.DeduplicateDailyMenus(liveDailyMenus);
 		}
+
+		dailyMenus = MealMenuAggregator.DeduplicateDailyMenus(dailyMenus);
 
 		MealItem[] orderedMeals = [.. meals
 			.OrderBy(meal => meal.Category)

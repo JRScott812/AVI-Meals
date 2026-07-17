@@ -103,6 +103,7 @@ export interface DailyMenu {
 export interface MealOccurrence {
 	mealName: string;
 	occurrenceCount: number;
+	mealTypes: MealType[];
 }
 
 export interface MealAnalyticsResponse {

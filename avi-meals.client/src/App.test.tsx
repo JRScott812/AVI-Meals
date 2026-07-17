@@ -75,7 +75,8 @@ const mockAnalyticsResponse = {
 	mealOccurrences: [
 		{
 			mealName: 'Monday Veggie Bowl',
-			occurrenceCount: 2
+			occurrenceCount: 2,
+			mealTypes: ['Lunch', 'Dinner']
 		}
 	]
 };
@@ -211,5 +212,7 @@ describe('App', () => {
 		fireEvent.click(dayToggle);
 		expect(screen.getByText('Main Line')).toBeInTheDocument();
 		expect(screen.getByText('Monday Veggie Bowl')).toBeInTheDocument();
+		expect(screen.getByText('vegan').className).toContain('chip-vegan');
+		expect(screen.getByText('contains soy').className).toContain('chip-allergen-soy');
 	});
 });

@@ -43,6 +43,13 @@ export function DailyMenusSection({ analytics }: DailyMenusSectionProps) {
 				{sortedMenus.length} day{sortedMenus.length === 1 ? '' : 's'} of Hodson residential history.
 				Expand a day to view items. Meal-plan dining does not publish per-item prices.
 			</p>
+			<div className="tag-legend" aria-label="Dietary and allergen tag colors">
+				<span className="tag-legend-label">Tag colors</span>
+				<span className="chip chip-vegan">Vegan</span>
+				<span className="chip chip-vegetarian">Vegetarian</span>
+				<span className="chip chip-gluten-free">Gluten free</span>
+				<span className="chip chip-allergen">Contains allergen</span>
+			</div>
 			<div className="content-stack">
 				{sortedMenus.map(day => {
 					const isExpanded = expandedDates.has(day.date);
@@ -76,7 +83,7 @@ export function DailyMenusSection({ analytics }: DailyMenusSectionProps) {
 													<td>{formatEnumLabel(item.station)}</td>
 													<td>{formatEnumLabel(item.mealType)}</td>
 													<td>{item.category}</td>
-													<td><ChipSeries items={item.tags.length === 0 ? ['none'] : item.tags} /></td>
+													<td><ChipSeries items={item.tags.length === 0 ? ['none'] : item.tags} colored /></td>
 												</tr>
 											))}
 										</tbody>
